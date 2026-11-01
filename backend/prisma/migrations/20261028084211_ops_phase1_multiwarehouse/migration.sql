@@ -1,0 +1,210 @@
+-- CreateEnum
+CREATE TYPE "OrderSource" AS ENUM ('Web', 'SalesRep', 'Phone', 'Whatsapp', 'Admin');
+
+-- AlterTable
+ALTER TABLE "AccountStatusEvent" ALTER COLUMN "createdAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC');
+
+-- AlterTable
+ALTER TABLE "Address" ALTER COLUMN "createdAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC');
+
+-- AlterTable
+ALTER TABLE "AfterSalesRequest" ALTER COLUMN "requestedAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC');
+
+-- AlterTable
+ALTER TABLE "AuthRecoveryRequest" ALTER COLUMN "createdAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC');
+
+-- AlterTable
+ALTER TABLE "Brand" ALTER COLUMN "createdAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC');
+
+-- AlterTable
+ALTER TABLE "Campaign" ALTER COLUMN "createdAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC');
+
+-- AlterTable
+ALTER TABLE "CareerApplication" ALTER COLUMN "consentAcceptedAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC'),
+ALTER COLUMN "createdAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC');
+
+-- AlterTable
+ALTER TABLE "CareerJob" ALTER COLUMN "createdAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC');
+
+-- AlterTable
+ALTER TABLE "CarouselSlide" ALTER COLUMN "createdAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC');
+
+-- AlterTable
+ALTER TABLE "Category" ALTER COLUMN "createdAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC');
+
+-- AlterTable
+ALTER TABLE "ChatConversation" ALTER COLUMN "lastMessageAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC'),
+ALTER COLUMN "createdAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC');
+
+-- AlterTable
+ALTER TABLE "ChatMessage" ALTER COLUMN "createdAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC');
+
+-- AlterTable
+ALTER TABLE "CodCollection" ALTER COLUMN "collectedAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC');
+
+-- AlterTable
+ALTER TABLE "CodSettlement" ALTER COLUMN "receivedAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC');
+
+-- AlterTable
+ALTER TABLE "ContactVerificationOtp" ALTER COLUMN "createdAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC');
+
+-- AlterTable
+ALTER TABLE "DeliveryAttempt" ALTER COLUMN "createdAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC');
+
+-- AlterTable
+ALTER TABLE "DeliveryCompany" ADD COLUMN     "apiBaseUrl" TEXT,
+ADD COLUMN     "apiClientId" TEXT,
+ADD COLUMN     "apiSecret" TEXT,
+ADD COLUMN     "providerKey" TEXT,
+ADD COLUMN     "storeId" TEXT,
+ALTER COLUMN "createdAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC');
+
+-- AlterTable
+ALTER TABLE "DeliveryHub" ADD COLUMN     "warehouseId" TEXT;
+
+-- AlterTable
+ALTER TABLE "DeliveryProof" ALTER COLUMN "createdAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC');
+
+-- AlterTable
+ALTER TABLE "DeliveryZone" ALTER COLUMN "createdAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC');
+
+-- AlterTable
+ALTER TABLE "DispatchManifest" ADD COLUMN     "warehouseId" TEXT,
+ALTER COLUMN "createdAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC');
+
+-- AlterTable
+ALTER TABLE "Feedback" ALTER COLUMN "createdAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC');
+
+-- AlterTable
+ALTER TABLE "InboxMessage" ALTER COLUMN "createdAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC');
+
+-- AlterTable
+ALTER TABLE "InventoryAdjustment" ALTER COLUMN "createdAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC');
+
+-- AlterTable
+ALTER TABLE "License" ALTER COLUMN "createdAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC');
+
+-- AlterTable
+ALTER TABLE "LoginChallenge" ALTER COLUMN "createdAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC');
+
+-- AlterTable
+ALTER TABLE "Order" ADD COLUMN     "source" "OrderSource" NOT NULL DEFAULT 'Web',
+ADD COLUMN     "warehouseId" TEXT,
+ALTER COLUMN "createdAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC');
+
+-- AlterTable
+ALTER TABLE "OrderEvent" ALTER COLUMN "createdAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC');
+
+-- AlterTable
+ALTER TABLE "PasswordResetChallenge" ALTER COLUMN "createdAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC');
+
+-- AlterTable
+ALTER TABLE "PaymentAttempt" ALTER COLUMN "createdAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC');
+
+-- AlterTable
+ALTER TABLE "PhoneOtp" ALTER COLUMN "createdAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC');
+
+-- AlterTable
+ALTER TABLE "PickList" ADD COLUMN     "warehouseId" TEXT,
+ALTER COLUMN "createdAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC');
+
+-- AlterTable
+ALTER TABLE "PickListLine" ALTER COLUMN "createdAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC');
+
+-- AlterTable
+ALTER TABLE "Product" ALTER COLUMN "createdAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC');
+
+-- AlterTable
+ALTER TABLE "Promotion" ALTER COLUMN "createdAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC');
+
+-- AlterTable
+ALTER TABLE "PurchaseOrder" ADD COLUMN     "warehouseId" TEXT,
+ALTER COLUMN "createdAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC');
+
+-- AlterTable
+ALTER TABLE "Receipt" ALTER COLUMN "receivedAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC');
+
+-- AlterTable
+ALTER TABLE "Referral" ALTER COLUMN "createdAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC');
+
+-- AlterTable
+ALTER TABLE "RefundRecord" ALTER COLUMN "createdAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC');
+
+-- AlterTable
+ALTER TABLE "Review" ALTER COLUMN "createdAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC');
+
+-- AlterTable
+ALTER TABLE "Rider" ALTER COLUMN "createdAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC');
+
+-- AlterTable
+ALTER TABLE "RiderReview" ALTER COLUMN "createdAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC');
+
+-- AlterTable
+ALTER TABLE "Shipment" ALTER COLUMN "createdAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC');
+
+-- AlterTable
+ALTER TABLE "StockLevel" ADD COLUMN     "maxStock" INTEGER,
+ADD COLUMN     "minStock" INTEGER NOT NULL DEFAULT 0;
+
+-- AlterTable
+ALTER TABLE "StockNotification" ALTER COLUMN "createdAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC');
+
+-- AlterTable
+ALTER TABLE "StoreSettings" ALTER COLUMN "createdAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC');
+
+-- AlterTable
+ALTER TABLE "Supplier" ALTER COLUMN "createdAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC');
+
+-- AlterTable
+ALTER TABLE "SupportTicket" ALTER COLUMN "lastActivityAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC'),
+ALTER COLUMN "createdAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC');
+
+-- AlterTable
+ALTER TABLE "SupportTicketNote" ALTER COLUMN "createdAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC');
+
+-- AlterTable
+ALTER TABLE "User" ALTER COLUMN "createdAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC');
+
+-- AlterTable
+ALTER TABLE "Wallet" ALTER COLUMN "createdAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC');
+
+-- AlterTable
+ALTER TABLE "WalletTransaction" ALTER COLUMN "createdAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC');
+
+-- AlterTable
+ALTER TABLE "Warehouse" ADD COLUMN     "city" TEXT,
+ADD COLUMN     "region" TEXT,
+ALTER COLUMN "createdAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC');
+
+-- AlterTable
+ALTER TABLE "Wishlist" ALTER COLUMN "createdAt" SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC');
+
+-- CreateIndex
+CREATE INDEX "DeliveryHub_warehouseId_idx" ON "DeliveryHub"("warehouseId");
+
+-- CreateIndex
+CREATE INDEX "DispatchManifest_warehouseId_idx" ON "DispatchManifest"("warehouseId");
+
+-- CreateIndex
+CREATE INDEX "Order_warehouseId_idx" ON "Order"("warehouseId");
+
+-- CreateIndex
+CREATE INDEX "PickList_warehouseId_status_idx" ON "PickList"("warehouseId", "status");
+
+-- CreateIndex
+CREATE INDEX "PurchaseOrder_warehouseId_idx" ON "PurchaseOrder"("warehouseId");
+
+-- AddForeignKey
+ALTER TABLE "DispatchManifest" ADD CONSTRAINT "DispatchManifest_warehouseId_fkey" FOREIGN KEY ("warehouseId") REFERENCES "Warehouse"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Order" ADD CONSTRAINT "Order_warehouseId_fkey" FOREIGN KEY ("warehouseId") REFERENCES "Warehouse"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "DeliveryHub" ADD CONSTRAINT "DeliveryHub_warehouseId_fkey" FOREIGN KEY ("warehouseId") REFERENCES "Warehouse"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "PurchaseOrder" ADD CONSTRAINT "PurchaseOrder_warehouseId_fkey" FOREIGN KEY ("warehouseId") REFERENCES "Warehouse"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "PickList" ADD CONSTRAINT "PickList_warehouseId_fkey" FOREIGN KEY ("warehouseId") REFERENCES "Warehouse"("id") ON DELETE SET NULL ON UPDATE CASCADE;

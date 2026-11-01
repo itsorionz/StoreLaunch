@@ -1,0 +1,1729 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  Customer
+  Admin
+  Rider
+  Support
+  Warehouse
+  Sales
+  Manager
+}
+
+enum OrderStatus {
+  Pending           @map("PENDING")
+  Paid              @map("PAID")
+  Processing        @map("PROCESSING")
+  Confirmed         @map("CONFIRMED")
+  Packing           @map("PACKING")
+  Packed            @map("PACKED")
+  Shipped           @map("SHIPPED")
+  ReturningToOrigin @map("RETURNING_TO_ORIGIN")
+  Delivered         @map("DELIVERED")
+  Cancelled         @map("CANCELLED")
+}
+
+enum AfterSalesKind {
+  Cancellation
+  Return
+  Replacement
+}
+
+enum ContactChannel {
+  Email @map("EMAIL")
+  Phone @map("PHONE")
+}
+
+enum AfterSalesStatus {
+  Requested
+  Approved
+  Rejected
+  Received
+  Inspected
+  Resolved
+}
+
+enum ReturnDisposition {
+  Resellable
+  Damaged
+  WriteOff
+}
+
+enum RefundTender {
+  Wallet
+  Gateway
+  Cash
+}
+
+enum RefundStatus {
+  Completed
+  AwaitingExternal
+}
+
+enum InventoryAdjustmentReason {
+  Manual
+  Receiving
+  Stocktake
+  Restock
+  Dispatch
+}
+
+enum CodSettlementMethod {
+  Cash
+  BankTransfer
+  MobileFinancialService
+  Other
+}
+
+enum ReviewStatus {
+  Pending  @map("PENDING")
+  Approved @map("APPROVED")
+  Hidden   @map("HIDDEN")
+}
+
+enum CareerJobStatus {
+  Draft
+  Published
+  Closed
+}
+
+enum CareerEmploymentType {
+  FullTime
+  PartTime
+  Contract
+  Internship
+}
+
+enum CareerWorkplaceMode {
+  OnSite
+  Hybrid
+  Remote
+}
+
+enum CareerApplicationStatus {
+  New
+  Reviewing
+  Shortlisted
+  Rejected
+  Hired
+}
+
+model User {
+  id                      String                   @id @default(cuid())
+  email                   String                   @unique
+  name                    String
+  passwordHash            String
+  active                  Boolean                  @default(true)
+  sessionVersion          Int                      @default(0)
+  roles                   Role[]                   @default([Customer])
+  phone                   String?
+  referralCode            String?                  @unique
+  referralsSent           Referral[]               @relation("ReferralSender")
+  referralReceived        Referral?                @relation("ReferralRecipient")
+  gender                  String?
+  dateOfBirth             DateTime?
+  profilePhoto            Bytes?
+  profilePhotoVersion     String?
+  createdAt               DateTime                 @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  updatedAt               DateTime                 @updatedAt
+  addresses               Address[]
+  orders                  Order[]
+  reviews                 Review[]
+  cart                    Cart?
+  wallet                  Wallet?
+  stockNotifications      StockNotification[]
+  wishlists               Wishlist[]
+  riderReviews            RiderReview[]
+  riderProfile            Rider?
+  loginChallenges         LoginChallenge[]
+  passwordResetChallenges PasswordResetChallenge[]
+  contactVerificationOtps ContactVerificationOtp[]
+  feedback                Feedback[]
+  /** Sales-rep commission rate in basis points (500 = 5%) for POS orders. */
+  commissionBps           Int                     @default(0)
+  salesRepOrders          Order[]                 @relation("SalesRepOrders")
+  inboxMessages           InboxMessage[]
+  afterSalesRequests      AfterSalesRequest[]
+  chatConversations       ChatConversation[]      @relation("ChatCustomer")
+  agentConversations      ChatConversation[]      @relation("ChatAgent")
+  supportTickets          SupportTicket[]         @relation("TicketCustomer")
+  agentTickets            SupportTicket[]         @relation("TicketAgent")
+  pickedPickLists         PickList[]              @relation("PickedBy")
+  packedPickLists         PickList[]              @relation("PackedBy")
+  employee                Employee?
+  attendanceMarked        AttendanceRecord[]
+  leaveDecisions          LeaveRequest[]
+  payrollRunsCreated      PayrollRun[]
+  reviewsGiven            PerformanceReview[]
+
+  @@index([createdAt])
+}
+
+enum InboxCategory {
+  PROMOTION
+  NOTIFICATION
+}
+
+model InboxMessage {
+  id          String        @id @default(cuid())
+  userId      String
+  category    InboxCategory
+  title       String
+  body        String
+  href        String?
+  sourceKey   String
+  promotionId String?
+  promotion   Promotion?    @relation(fields: [promotionId], references: [id], onDelete: SetNull)
+  readAt      DateTime?
+  createdAt   DateTime      @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, sourceKey])
+  @@index([userId, category, createdAt])
+  @@index([userId, readAt])
+  @@index([promotionId, readAt])
+}
+
+enum ChatConversationStatus {
+  Open
+  Closed
+}
+
+model ChatConversation {
+  id                String                  @id @default(cuid())
+  customerId        String
+  customerServiceId String?
+  status            ChatConversationStatus  @default(Open)
+  subject           String?
+  orderId           String?
+  lastMessageAt     DateTime                @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  closedAt          DateTime?
+  createdAt         DateTime                @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  updatedAt         DateTime                @updatedAt
+  customer          User                    @relation("ChatCustomer", fields: [customerId], references: [id], onDelete: Cascade)
+  agent             User?                   @relation("ChatAgent", fields: [customerServiceId], references: [id], onDelete: SetNull)
+  messages          ChatMessage[]
+
+  supportTickets SupportTicket[]
+
+  @@index([status, lastMessageAt])
+  @@index([customerId, status])
+  @@index([customerServiceId, status])
+}
+
+enum SupportTicketStatus {
+  Open
+  InProgress
+  Waiting
+  Resolved
+  Closed
+}
+
+enum SupportTicketPriority {
+  Low
+  Normal
+  High
+  Urgent
+}
+
+enum SupportTicketCategory {
+  OrderStatus
+  Payment
+  Refund
+  Return
+  Delivery
+  Account
+  Product
+  Other
+}
+
+enum SupportTicketSource {
+  Chat
+  Order
+  Manual
+}
+
+model SupportTicket {
+  id              String                @id @default(cuid())
+  number          String                @unique
+  subject         String
+  status          SupportTicketStatus   @default(Open)
+  priority        SupportTicketPriority @default(Normal)
+  category        SupportTicketCategory @default(Other)
+  source          SupportTicketSource   @default(Manual)
+  customerId      String
+  orderId         String?
+  conversationId  String?
+  assignedToId    String?
+  escalatedAt     DateTime?
+  escalationNote  String?
+  firstResponseAt DateTime?
+  resolvedAt      DateTime?
+  closedAt        DateTime?
+  lastActivityAt  DateTime              @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  createdAt       DateTime              @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  updatedAt       DateTime              @updatedAt
+  customer        User                  @relation("TicketCustomer", fields: [customerId], references: [id], onDelete: Cascade)
+  order           Order?                @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  conversation    ChatConversation?     @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  assignedTo      User?                 @relation("TicketAgent", fields: [assignedToId], references: [id], onDelete: SetNull)
+  notes           SupportTicketNote[]
+
+  @@index([status, lastActivityAt])
+  @@index([assignedToId, status])
+  @@index([customerId, createdAt])
+  @@index([orderId])
+}
+
+model SupportTicketNote {
+  id         String        @id @default(cuid())
+  ticketId   String
+  authorId   String
+  authorRole Role
+  body       String
+  createdAt  DateTime      @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  ticket     SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId, createdAt])
+}
+
+model ChatMessage {
+  id             String            @id @default(cuid())
+  conversationId String
+  senderId       String
+  senderRole     Role
+  body           String
+  readAt         DateTime?
+  createdAt      DateTime          @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  conversation   ChatConversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@index([conversationId, senderRole, readAt])
+}
+
+enum PromotionStatus {
+  Draft
+  Sent
+}
+
+enum PromotionAudience {
+  AllCustomers
+  SelectedCustomers
+}
+
+model Promotion {
+  id              String            @id @default(cuid())
+  title           String
+  body            String
+  href            String?
+  campaignId      String?
+  campaign        Campaign?         @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  audience        PromotionAudience @default(AllCustomers)
+  selectedUserIds String[]          @default([])
+  status          PromotionStatus   @default(Draft)
+  createdById     String
+  createdByName   String
+  sentById        String?
+  sentByName      String?
+  recipientCount  Int               @default(0)
+  sentAt          DateTime?
+  messages        InboxMessage[]
+  createdAt       DateTime          @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  updatedAt       DateTime          @updatedAt
+
+  @@index([status, createdAt])
+}
+
+model Feedback {
+  id        String   @id @default(cuid())
+  userId    String
+  kind      String
+  message   String
+  rating    Int?
+  createdAt DateTime @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model CareerJob {
+  id             String               @id @default(cuid())
+  slug           String               @unique
+  title          String
+  department     String
+  location       String
+  employmentType CareerEmploymentType
+  workplaceMode  CareerWorkplaceMode
+  summary        String
+  description    String
+  requirements   String[]             @default([])
+  status         CareerJobStatus      @default(Draft)
+  closesAt       DateTime?
+  publishedAt    DateTime?
+  createdById    String
+  createdByName  String
+  createdAt      DateTime             @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  updatedAt      DateTime             @updatedAt
+  applications   CareerApplication[]
+
+  @@index([status, publishedAt])
+  @@index([closesAt])
+}
+
+model CareerApplication {
+  id                String                  @id @default(cuid())
+  jobId             String
+  name              String
+  email             String
+  phone             String
+  resumeUrl         String?
+  resumeFile        Bytes?
+  resumeFileName    String?
+  resumeMimeType    String?
+  coverLetter       String
+  consentAcceptedAt DateTime                @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  status            CareerApplicationStatus @default(New)
+  createdAt         DateTime                @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  updatedAt         DateTime                @updatedAt
+  job               CareerJob               @relation(fields: [jobId], references: [id], onDelete: Restrict)
+  employee          Employee?
+
+  @@unique([jobId, email])
+  @@index([jobId, status, createdAt])
+  @@index([email, createdAt])
+}
+
+model LoginChallenge {
+  id         String    @id @default(cuid())
+  tokenHash  String    @unique
+  userId     String
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+}
+
+model PasswordResetChallenge {
+  id         String    @id @default(cuid())
+  tokenHash  String    @unique
+  userId     String
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([expiresAt])
+}
+
+model AuthRecoveryRequest {
+  id             String   @id @default(cuid())
+  identifierHash String
+  createdAt      DateTime @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+
+  @@index([identifierHash, createdAt])
+}
+
+model Wishlist {
+  id        String   @id @default(cuid())
+  userId    String
+  productId String
+  createdAt DateTime @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+  @@index([userId])
+}
+
+model Wallet {
+  id           String              @id @default(cuid())
+  userId       String              @unique
+  balanceCents Int                 @default(0)
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions WalletTransaction[]
+  createdAt    DateTime            @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  updatedAt    DateTime            @updatedAt
+}
+
+enum WalletTxType {
+  ReferralReward
+  GIFT
+  ORDER_PAYMENT
+  REFUND
+  ADJUSTMENT
+}
+
+enum PaymentMethod {
+  COD
+  GATEWAY
+}
+
+model WalletTransaction {
+  id                String       @id @default(cuid())
+  walletId          String
+  amountCents       Int
+  balanceAfterCents Int
+  type              WalletTxType
+  orderId           String?
+  note              String?
+  createdAt         DateTime     @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  wallet            Wallet       @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  order             Order?       @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([walletId])
+  @@index([orderId])
+}
+
+model StoreSettings {
+  id                           String    @id @default(cuid())
+  singletonKey                 Int       @unique @default(1)
+  currencyLockedAt             DateTime?
+  storeName                    String    @default("My Store")
+  referralEnabled              Boolean   @default(true)
+  referralRewardCents          Int       @default(4000)
+  logoUrl                      String?
+  primaryColor                 String    @default("#0f7b4f")
+  currencySymbol               String    @default("৳")
+  currencyCode                 String    @default("BDT")
+  language                     String    @default("en")
+  contactEmail                 String?
+  contactPhone                 String?
+  address                      String?
+  headerAnnouncement           String?
+  headerAnnouncementBackground String    @default("#e6f4ec")
+  headerAnnouncementDirection  String    @default("left")
+  headerAnnouncementSpeed      Int       @default(24)
+  headerSupportLabel           String?
+  emailVerificationSubject     String    @default("Verify your email address")
+  emailVerificationBody        String    @default("Your verification code is {{code}}. It expires in {{minutes}} minutes.")
+  smsVerificationBody          String    @default("Your verification code is {{code}}. It expires in {{minutes}} minutes.")
+  careerNotificationEmail      String?
+  careerEmailSubject           String    @default("New career application: {{jobTitle}}")
+  careerEmailBody              String    @default("A new application was submitted for {{jobTitle}}.\n\nApplicant: {{applicantName}}\nEmail: {{applicantEmail}}\nPhone: {{applicantPhone}}\nResume: {{resume}}\n\nCover letter:\n{{coverLetter}}\n\nReview application {{applicationId}} in the admin dashboard.")
+  deliveryEstimate             String    @default("12-24 HOURS")
+  returnWindowDays             Int       @default(7)
+  deliveryFeeCents             Int       @default(0)
+  freeShippingOverCents        Int?
+  setupCompletedAt             DateTime?
+  createdAt                    DateTime  @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  updatedAt                    DateTime  @updatedAt
+}
+
+model Referral {
+  id                String    @id @default(cuid())
+  referrerId        String
+  refereeId         String    @unique
+  rewardCents       Int
+  currencyCode      String
+  rewardedAt        DateTime?
+  qualifyingOrderId String?   @unique
+  createdAt         DateTime  @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  referrer          User      @relation("ReferralSender", fields: [referrerId], references: [id], onDelete: Restrict)
+  referee           User      @relation("ReferralRecipient", fields: [refereeId], references: [id], onDelete: Restrict)
+  qualifyingOrder   Order?    @relation(fields: [qualifyingOrderId], references: [id], onDelete: Restrict)
+
+  @@index([referrerId, createdAt])
+}
+
+model License {
+  id          String    @id @default(cuid())
+  keyHash     String    @unique
+  storeSlug   String?
+  expiresAt   DateTime?
+  activatedAt DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+}
+
+model Category {
+  id        String     @id @default(cuid())
+  name      String
+  nameBn    String?
+  slug      String     @unique
+  imageUrl  String?
+  order     Int        @default(0)
+  parentId  String?
+  parent    Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children  Category[] @relation("CategoryTree")
+  products  Product[]
+  createdAt DateTime   @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  updatedAt DateTime   @updatedAt
+
+  @@index([parentId])
+}
+
+model Brand {
+  id        String    @id @default(cuid())
+  name      String
+  nameBn    String?
+  slug      String    @unique
+  imageUrl  String?
+  products  Product[]
+  createdAt DateTime  @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  updatedAt DateTime  @updatedAt
+}
+
+model Product {
+  id                   String                @id @default(cuid())
+  name                 String
+  nameBn               String?
+  slug                 String                @unique
+  description          String                @default("")
+  descriptionBn        String?
+  priceCents           Int
+  salePriceCents       Int?
+  costCents            Int?
+  stock                Int                   @default(0)
+  sku                  String?               @unique
+  barcode              String?
+  weightGrams          Int?
+  lengthMm             Int?
+  widthMm              Int?
+  heightMm             Int?
+  reorderPoint         Int               @default(0)
+  images               String[]              @default([])
+  flashSale            Boolean               @default(false)
+  featured             Boolean               @default(false)
+  active               Boolean               @default(true)
+  categoryId           String
+  brandId              String?
+  category             Category              @relation(fields: [categoryId], references: [id])
+  brand                Brand?                @relation(fields: [brandId], references: [id])
+  reviews              Review[]
+  orderItems           OrderItem[]
+  cartItems            CartItem[]
+  stockNotifications   StockNotification[]
+  wishlistedBy         Wishlist[]
+  campaignOffers       CampaignProduct[]
+  inventoryAdjustments InventoryAdjustment[]
+  stockMovements StockMovement[]
+  stockLevels          StockLevel[]
+  purchaseOrderLines   PurchaseOrderLine[]
+  receiptLines         ReceiptLine[]
+  stockTransfers       StockTransfer[]
+  createdAt            DateTime              @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  updatedAt            DateTime              @updatedAt
+
+  @@index([categoryId])
+  @@index([brandId])
+  @@index([barcode])
+  @@index([active, flashSale])
+  @@index([active, featured])
+}
+
+model InventoryAdjustment {
+  id                String   @id @default(cuid())
+  requestKey        String   @unique
+  productId         String
+  product           Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+  actorId           String
+  actorName         String
+  delta             Int
+  previousStock     Int
+  newStock          Int
+  expectedUpdatedAt DateTime
+  reason            String
+  reasonCode        InventoryAdjustmentReason @default(Manual)
+  warehouseId       String?
+  warehouse         Warehouse?   @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
+  createdAt         DateTime     @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+
+  @@index([productId, createdAt])
+  @@index([warehouseId, createdAt])
+}
+
+model Campaign {
+  id         String            @id @default(cuid())
+  title      String
+  imageUrl   String
+  linkUrl    String
+  order      Int               @default(0)
+  active     Boolean           @default(true)
+  flashSale  Boolean           @default(false)
+  showOnHome Boolean           @default(false)
+  showInCart Boolean           @default(false)
+  products   CampaignProduct[]
+  promotions Promotion[]
+  createdAt  DateTime          @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  updatedAt  DateTime          @updatedAt
+}
+
+model CampaignProduct {
+  campaignId      String
+  productId       String
+  offerPriceCents Int
+  campaign        Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  product         Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([campaignId, productId])
+  @@index([productId])
+}
+
+model CarouselSlide {
+  id        String   @id @default(cuid())
+  imageUrl  String
+  title     String?
+  linkUrl   String?
+  order     Int      @default(0)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  updatedAt DateTime @updatedAt
+
+  @@index([active, order])
+}
+
+model PhoneOtp {
+  id         String    @id @default(cuid())
+  phone      String
+  code       String
+  attempts   Int       @default(0)
+  consumedAt DateTime?
+  expiresAt  DateTime
+  createdAt  DateTime  @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+
+  @@index([phone, createdAt])
+}
+
+model ContactVerificationOtp {
+  id            String         @id @default(cuid())
+  userId        String
+  channel       ContactChannel
+  target        String
+  previousValue String?
+  codeHash      String
+  attempts      Int            @default(0)
+  consumedAt    DateTime?
+  expiresAt     DateTime
+  createdAt     DateTime       @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, channel, target, createdAt])
+  @@index([channel, target, createdAt])
+  @@index([expiresAt])
+}
+
+model StockNotification {
+  id         String    @id @default(cuid())
+  userId     String
+  productId  String
+  notifiedAt DateTime?
+  createdAt  DateTime  @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product    Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+  @@index([productId])
+}
+
+model Review {
+  id        String       @id @default(cuid())
+  rating    Int
+  body      String       @default("")
+  status    ReviewStatus @default(Pending)
+  productId String
+  userId    String
+  product   Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime     @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  updatedAt DateTime     @updatedAt
+
+  @@unique([productId, userId])
+  @@index([productId, status])
+}
+
+model Cart {
+  id        String     @id @default(cuid())
+  userId    String?    @unique
+  user      User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items     CartItem[]
+  updatedAt DateTime   @updatedAt
+}
+
+model CartItem {
+  id        String  @id @default(cuid())
+  cartId    String
+  productId String
+  quantity  Int     @default(1)
+  selected  Boolean @default(true)
+  cart      Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([cartId, productId])
+}
+
+enum AddressType {
+  HOME
+  OFFICE
+  OTHER
+}
+
+enum OrderCurrencySource {
+  Snapshot             @map("SNAPSHOT")
+  InferredFromSettings @map("INFERRED_FROM_SETTINGS")
+  AdminConfirmed       @map("ADMIN_CONFIRMED")
+  Unrecorded           @map("UNRECORDED")
+}
+
+enum OrderSource {
+  Web
+  SalesRep
+  Phone
+  Whatsapp
+  Admin
+}
+
+model Address {
+  id        String      @id @default(cuid())
+  userId    String
+  name      String
+  phone     String
+  type      AddressType @default(HOME)
+  line1     String
+  line2     String?
+  city      String
+  region    String?
+  postal    String?
+  isDefault Boolean     @default(false)
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders    Order[]
+  createdAt DateTime    @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  updatedAt DateTime    @updatedAt
+}
+
+enum DeliveryZoneMode {
+  OwnRider
+  Courier
+}
+
+model DeliveryZone {
+  id                String          @id @default(cuid())
+  name              String
+  areas             String[]        @default([])
+  mode              DeliveryZoneMode @default(OwnRider)
+  deliveryCompanyId String?
+  deliveryCompany   DeliveryCompany? @relation(fields: [deliveryCompanyId], references: [id], onDelete: SetNull)
+  warehouseId       String?
+  warehouse         Warehouse?      @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
+  deliveryHubId     String?
+  deliveryHub       DeliveryHub?    @relation(fields: [deliveryHubId], references: [id], onDelete: SetNull)
+  rateCents         Int             @default(0)
+  codFeeCents       Int             @default(0)
+  freeOverCents     Int?
+  etaDaysFrom       Int             @default(1)
+  etaDaysTo         Int             @default(3)
+  active            Boolean         @default(true)
+  createdAt         DateTime        @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  updatedAt         DateTime        @updatedAt
+  orders            Order[]
+
+  @@index([warehouseId])
+  @@index([deliveryHubId])
+}
+
+enum LabelFormat {
+  A4
+  Thermal
+}
+
+model DeliveryCompany {
+  id          String   @id @default(cuid())
+  name        String
+  phone       String?
+  trackingUrl String?
+  providerKey String?
+  apiBaseUrl  String?
+  apiClientId String?
+  apiSecret   String?
+  storeId     String?
+  // §5.3 volume discount: basis points off live quotes once the carrier ships
+  // at least volumeMinParcels parcels in the trailing 30 days (0 disables).
+  volumeDiscountBps Int        @default(0)
+  volumeMinParcels  Int        @default(0)
+  // §5.4 default shipping-label layout; per-order ?format= overrides it.
+  labelFormat       LabelFormat @default(A4)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  updatedAt   DateTime @updatedAt
+  orders      Order[]
+  deliveryZones DeliveryZone[]
+  shipments   Shipment[]
+  manifests   DispatchManifest[]
+}
+enum ShipmentProviderMode {
+  Manual
+  Api
+}
+
+enum ShipmentStatus {
+  Pending
+  Created
+  InTransit
+  OutForDelivery
+  Delivered
+  Failed
+  Returned
+  Shipped
+}
+
+model Shipment {
+  id               String              @id @default(cuid())
+  orderId          String              @unique
+  order            Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  deliveryCompanyId String?
+  deliveryCompany  DeliveryCompany?    @relation(fields: [deliveryCompanyId], references: [id], onDelete: SetNull)
+  trackingNumber   String?
+  status           ShipmentStatus      @default(Pending)
+  statusHistory    Json?
+  labelUrl         String?
+  // §10 cost/parcel: the effective carrier quote (after volume discount) at
+  // dispatch; null when the carrier could not quote (manual/pinned mode).
+  costCents        Int?
+  handedOverAt     DateTime?
+  lastSyncedAt     DateTime?
+  providerMode     ShipmentProviderMode @default(Manual)
+  createdAt        DateTime            @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  updatedAt        DateTime            @updatedAt
+
+  @@index([status])
+  @@index([status], map: "Shipment_status_idx2")
+}
+
+enum DispatchManifestKind {
+  Rider
+  Courier
+}
+
+enum DispatchManifestStatus {
+  Open
+  HandedOver
+}
+
+model DispatchManifest {
+  id                String                   @id @default(cuid())
+  number            String                   @unique
+  kind              DispatchManifestKind
+  warehouseId       String?
+  warehouse         Warehouse?               @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
+  riderId           String?
+  rider             Rider?                   @relation(fields: [riderId], references: [id], onDelete: SetNull)
+  deliveryCompanyId String?
+  deliveryCompany   DeliveryCompany?         @relation(fields: [deliveryCompanyId], references: [id], onDelete: SetNull)
+  status            DispatchManifestStatus   @default(Open)
+  createdAt         DateTime                 @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  handedOverAt      DateTime?
+  lines             DispatchManifestLine[]
+
+  @@index([status])
+  @@index([warehouseId])
+}
+
+model DispatchManifestLine {
+  id         String           @id @default(cuid())
+  manifestId String
+  manifest   DispatchManifest @relation(fields: [manifestId], references: [id], onDelete: Cascade)
+  orderId    String
+  order      Order            @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  @@unique([manifestId, orderId])
+}
+model Rider {
+  id        String            @id @default(cuid())
+  name      String
+  phone     String
+  active    Boolean           @default(true)
+  userId    String?           @unique
+  createdAt DateTime          @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  updatedAt DateTime          @updatedAt
+  user      User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  orders    Order[]
+  attempts  DeliveryAttempt[]
+  proofs    DeliveryProof[]
+  dispatchManifests DispatchManifest[]
+}
+
+model RiderReview {
+  id        String   @id @default(cuid())
+  rating    Int
+  body      String   @default("")
+  orderId   String   @unique
+  userId    String
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model Order {
+  rewardedReferral      Referral?
+  id                    String              @id @default(cuid())
+  number                String              @unique
+  status                OrderStatus         @default(Pending)
+  subtotalCents         Int
+  shippingCents         Int                 @default(0)
+  totalCents            Int
+  walletPaidCents       Int                 @default(0)
+  currencyCode          String?
+  currencySymbol        String?
+  currencySource        OrderCurrencySource @default(Snapshot)
+  source                OrderSource         @default(Web)
+  paymentMethod         PaymentMethod       @default(GATEWAY)
+  recipientName         String
+  additionalInfo        String?
+  phone                 String
+  line1                 String
+  line2                 String?
+  city                  String
+  region                String?
+  postal                String?
+  zoneId                String?
+  zone                  DeliveryZone?    @relation(fields: [zoneId], references: [id], onDelete: SetNull)
+  zoneRateCents         Int?
+  zoneCodFeeCents       Int?
+  deliveryHubId         String?
+  deliveryHub           DeliveryHub?     @relation(fields: [deliveryHubId], references: [id], onDelete: SetNull)
+  addressId             String?
+  userId                String
+  riderId               String?
+  deliveryCompanyId     String?
+  warehouseId           String?
+  paymentValId          String?             @unique
+  address               Address?            @relation(fields: [addressId], references: [id], onDelete: SetNull)
+  user                  User                @relation(fields: [userId], references: [id])
+  rider                 Rider?              @relation(fields: [riderId], references: [id], onDelete: SetNull)
+  deliveryCompany       DeliveryCompany?    @relation(fields: [deliveryCompanyId], references: [id], onDelete: SetNull)
+  warehouse             Warehouse?          @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
+  shipment              Shipment?
+  riderReview           RiderReview?
+  manifestLines         DispatchManifestLine[]
+  items                 OrderItem[]
+  pickLists             PickList[]
+  walletTransactions    WalletTransaction[]
+  refunds               RefundRecord[]
+  events                OrderEvent[]
+  codCollection         CodCollection?
+  deliveryAttempts      DeliveryAttempt[]
+  deliveryProof         DeliveryProof?
+  paymentAttempt        PaymentAttempt?
+  afterSalesRequests    AfterSalesRequest[]
+  supportTickets        SupportTicket[]
+  replacementForOrderId String?
+  replacementForOrder   Order?              @relation("OrderReplacements", fields: [replacementForOrderId], references: [id], onDelete: Restrict)
+  replacementOrders     Order[]             @relation("OrderReplacements")
+  /** Sales rep who created this POS order (OrderSource.SalesRep). */
+  salesRepId            String?
+  salesRep              User?               @relation("SalesRepOrders", fields: [salesRepId], references: [id], onDelete: SetNull)
+  /** Commission snapshot: computed from the rep's rate at order time. */
+  commissionCents       Int                 @default(0)
+  replacementRequestId  String?             @unique
+  replacementRequest    AfterSalesRequest?  @relation("RequestReplacementOrder", fields: [replacementRequestId], references: [id], onDelete: SetNull)
+  createdAt             DateTime            @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  paidAt                DateTime?
+  shippedAt             DateTime?
+  deliveredAt           DateTime?
+
+  @@index([userId])
+  @@index([status])
+  @@index([riderId, status, deliveredAt])
+  @@index([warehouseId])
+  @@index([salesRepId])
+  @@index([createdAt])
+  @@index([paidAt])
+  @@index([status, shippedAt])
+}
+
+enum PaymentAttemptStatus {
+  Created
+  Initiating
+  Ready
+  Unknown
+  Failed
+  Succeeded
+  ReviewRequired
+  Expired
+}
+
+model PaymentAttempt {
+  id                   String               @id @default(cuid())
+  orderId              String               @unique
+  order                Order                @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  status               PaymentAttemptStatus @default(Created)
+  sessionKey           String?
+  gatewayUrl           String?
+  expiresAt            DateTime
+  nextCheckAt          DateTime
+  lastCheckedAt        DateTime?
+  lastError            String?
+  requiresManualReview Boolean              @default(false)
+  createdAt            DateTime             @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  updatedAt            DateTime             @updatedAt
+
+  @@index([nextCheckAt, status])
+}
+
+enum OrderEventType {
+  Placed                 @map("PLACED")
+  Processing             @map("PROCESSING")
+  Confirmed              @map("CONFIRMED")
+  Packing                @map("PACKING")
+  Packed                 @map("PACKED")
+  CurrencyConfirmed      @map("CURRENCY_CONFIRMED")
+  PaymentConfirmed       @map("PAYMENT_CONFIRMED")
+  PaymentReviewRequired  @map("PAYMENT_REVIEW_REQUIRED")
+  DeliveryAssigned       @map("DELIVERY_ASSIGNED")
+  Shipped                @map("SHIPPED")
+  Delivered              @map("DELIVERED")
+  Cancelled              @map("CANCELLED")
+  WalletRefunded         @map("WALLET_REFUNDED")
+  CodCollected           @map("COD_COLLECTED")
+  CodRemitted            @map("COD_REMITTED")
+  DeliveryAttempted      @map("DELIVERY_ATTEMPTED")
+  DeliveryProofRecorded  @map("DELIVERY_PROOF_RECORDED")
+  ReturnRequested        @map("RETURN_REQUESTED")
+  ReturnApproved         @map("RETURN_APPROVED")
+  ReturnRejected         @map("RETURN_REJECTED")
+  ReturnReceived         @map("RETURN_RECEIVED")
+  ReturnInspected        @map("RETURN_INSPECTED")
+  ReturnResolved         @map("RETURN_RESOLVED")
+  ReturnToOriginStarted  @map("RETURN_TO_ORIGIN_STARTED")
+  ReturnToOriginReceived @map("RETURN_TO_ORIGIN_RECEIVED")
+  CodSettlementRecorded  @map("COD_SETTLEMENT_RECORDED")
+}
+
+model DeliveryAttempt {
+  id            String    @id @default(cuid())
+  orderId       String
+  riderId       String
+  reason        String
+  note          String
+  nextAttemptAt DateTime?
+  createdAt     DateTime  @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  order         Order     @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  rider         Rider     @relation(fields: [riderId], references: [id], onDelete: Restrict)
+
+  @@index([orderId, createdAt])
+  @@index([riderId, createdAt])
+}
+
+model DeliveryProof {
+  id           String   @id @default(cuid())
+  orderId      String   @unique
+  riderId      String
+  receivedBy   String
+  relationship String
+  note         String
+  photoKey     String?
+  photoMime    String?
+  photoData    Bytes?
+  createdAt    DateTime @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  order        Order    @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  rider        Rider    @relation(fields: [riderId], references: [id], onDelete: Restrict)
+
+  @@index([riderId, createdAt])
+}
+
+model OrderEvent {
+  id          String         @id @default(cuid())
+  orderId     String
+  type        OrderEventType
+  actorId     String?
+  actorName   String
+  actorRole   String
+  fromStatus  OrderStatus?
+  toStatus    OrderStatus?
+  message     String
+  amountCents Int?
+  dedupeKey   String?        @unique
+  createdAt   DateTime       @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  order       Order          @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  @@index([orderId, createdAt])
+}
+
+model CodCollection {
+  id                  String              @id @default(cuid())
+  orderId             String              @unique
+  amountCents         Int
+  currencyCode        String
+  collectedAt         DateTime            @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  collectedById       String
+  collectedByName     String
+  collectedByRole     String
+  courierName         String
+  remittedAt          DateTime?
+  remittedById        String?
+  remittedByName      String?
+  remittanceReference String?
+  order               Order               @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  settlementLines     CodSettlementLine[]
+
+  @@index([remittedAt, currencyCode])
+  @@index([collectedById, collectedByRole, collectedAt])
+}
+
+model CodSettlement {
+  id             String              @id @default(cuid())
+  currencyCode   String
+  method         CodSettlementMethod
+  reference      String              @unique
+  /** Courier snapshot for per-courier batches (§9.1). Null on legacy mixed batches. */
+  courierName    String?
+  expectedCents  Int
+  receivedCents  Int
+  varianceCents  Int
+  varianceReason String?
+  note           String?
+  receivedAt     DateTime            @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  receivedById   String
+  receivedByName String
+  lines          CodSettlementLine[]
+
+  @@index([receivedAt, currencyCode])
+  @@index([courierName, receivedAt])
+}
+
+model CodSettlementLine {
+  id               String        @id @default(cuid())
+  settlementId     String
+  codCollectionId  String
+  outstandingCents Int
+  expectedCents    Int
+  receivedCents    Int
+  appliedCents     Int
+  varianceCents    Int
+  varianceReason   String?
+  settlement       CodSettlement @relation(fields: [settlementId], references: [id], onDelete: Restrict)
+  codCollection    CodCollection @relation(fields: [codCollectionId], references: [id], onDelete: Restrict)
+
+  @@unique([settlementId, codCollectionId])
+  @@index([codCollectionId])
+}
+
+model OrderItem {
+  id              String           @id @default(cuid())
+  orderId         String
+  productId       String
+  name            String
+  nameBn          String?
+  slug            String
+  priceCents      Int
+  quantity        Int
+  imageUrl        String?
+  order           Order            @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  afterSalesItems AfterSalesItem[]
+  product         Product          @relation(fields: [productId], references: [id])
+  pickListLines   PickListLine[]
+
+  @@index([orderId])
+}
+
+model AfterSalesRequest {
+  id                      String           @id @default(cuid())
+  orderId                 String
+  userId                  String
+  kind                    AfterSalesKind
+  status                  AfterSalesStatus @default(Requested)
+  reason                  String
+  customerNote            String?
+  adminNote               String?
+  externalRefundReference String?
+  requestedAt             DateTime         @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  reviewedAt              DateTime?
+  receivedAt              DateTime?
+  inspectedAt             DateTime?
+  resolvedAt              DateTime?
+  order                   Order            @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  user                    User             @relation(fields: [userId], references: [id], onDelete: Restrict)
+  items                   AfterSalesItem[]
+  refunds                 RefundRecord[]
+  replacementOrder        Order?           @relation("RequestReplacementOrder")
+
+  @@index([orderId, status, requestedAt])
+  @@index([userId, requestedAt])
+}
+
+model AfterSalesItem {
+  id                String             @id @default(cuid())
+  requestId         String
+  orderItemId       String
+  requestedQuantity Int
+  approvedQuantity  Int?
+  receivedQuantity  Int?
+  disposition       ReturnDisposition?
+  conditionNote     String?
+  request           AfterSalesRequest  @relation(fields: [requestId], references: [id], onDelete: Restrict)
+  orderItem         OrderItem          @relation(fields: [orderItemId], references: [id], onDelete: Restrict)
+
+  @@unique([requestId, orderItemId])
+  @@index([orderItemId])
+}
+
+model RefundRecord {
+  id                String             @id @default(cuid())
+  requestId         String?
+  orderId           String?
+  tender            RefundTender
+  status            RefundStatus
+  amountCents       Int
+  currencyCode      String
+  externalReference String?
+  completedById     String
+  completedByName   String
+  createdAt         DateTime           @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  request           AfterSalesRequest? @relation(fields: [requestId], references: [id], onDelete: Restrict)
+  order             Order?             @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  @@unique([requestId, tender])
+  @@unique([orderId, tender])
+  @@index([status, createdAt])
+  @@index([orderId, tender, status])
+}
+
+model AccountStatusEvent {
+  id             String   @id @default(cuid())
+  userId         String?
+  riderId        String?
+  actorId        String
+  actorName      String
+  previousActive Boolean
+  active         Boolean
+  createdAt      DateTime @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+
+  @@index([userId, createdAt])
+  @@index([riderId, createdAt])
+}
+model Warehouse {
+  id          String      @id @default(cuid())
+  name        String
+  code        String      @unique
+  address     String?
+  city        String?
+  region      String?
+  isDefault   Boolean     @default(false)
+  active      Boolean     @default(true)
+  createdAt   DateTime    @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  updatedAt   DateTime    @updatedAt
+  stockLevels StockLevel[]
+  stockMovements StockMovement[]
+  receipts    Receipt[]
+  inventoryAdjustments InventoryAdjustment[]
+  orders      Order[]
+  pickLists   PickList[]
+  dispatchManifests DispatchManifest[]
+  purchaseOrders PurchaseOrder[]
+  deliveryHubs DeliveryHub[]
+  deliveryZones DeliveryZone[]
+  transfersOut StockTransfer[] @relation("TransferSource")
+  transfersIn  StockTransfer[] @relation("TransferDestination")
+}
+
+model StockLevel {
+  id          String    @id @default(cuid())
+  warehouseId String
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  productId   String
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  qty         Int       @default(0)
+  binCode     String?
+  minStock    Int       @default(0)
+  maxStock    Int?
+
+  @@unique([warehouseId, productId])
+}
+
+model StockMovement {
+  id          String    @id @default(cuid())
+  warehouseId String
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  productId   String
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  delta       Int
+  reason      String    @default("Manual")
+  reasonCode  String?
+  referenceId String?
+  actorId     String
+  actorName   String?
+  createdAt   DateTime  @default(now())
+}
+
+model DeliveryHub {
+  id            String   @id @default(cuid())
+  name          String
+  code          String   @unique
+  address       String?
+  city          String?
+  region        String?
+  warehouseId   String?
+  warehouse     Warehouse? @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
+  isDefault     Boolean  @default(false)
+  active        Boolean  @default(true)
+  capacity      Int?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  orders        Order[]
+  deliveryZones DeliveryZone[]
+
+  @@index([warehouseId])
+  @@index([city])
+}
+
+enum StockTransferStatus {
+  Pending
+  InTransit
+  Received
+  Cancelled
+}
+
+/// Inter-warehouse stock movement with in-transit tracking and approval:
+/// request (Pending) → dispatch (InTransit, stock leaves source) → receive
+/// (Received, stock lands at destination). Cancellation from Pending or
+/// InTransit restores source stock that was already dispatched.
+model StockTransfer {
+  id              String              @id @default(cuid())
+  productId       String
+  product         Product             @relation(fields: [productId], references: [id], onDelete: Restrict)
+  fromWarehouseId String
+  fromWarehouse   Warehouse           @relation("TransferSource", fields: [fromWarehouseId], references: [id], onDelete: Restrict)
+  toWarehouseId   String
+  toWarehouse     Warehouse           @relation("TransferDestination", fields: [toWarehouseId], references: [id], onDelete: Restrict)
+  qty             Int
+  status          StockTransferStatus @default(Pending)
+  note            String?
+  requestedById   String?
+  requestedByName String?
+  dispatchedById  String?
+  dispatchedByName String?
+  receivedById    String?
+  receivedByName  String?
+  requestedAt     DateTime            @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  dispatchedAt    DateTime?
+  receivedAt      DateTime?
+  cancelledAt     DateTime?
+  createdAt       DateTime            @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  updatedAt       DateTime            @updatedAt
+
+  @@index([status])
+  @@index([fromWarehouseId])
+  @@index([toWarehouseId])
+}
+
+model Supplier {
+  id        String         @id @default(cuid())
+  name      String
+  phone     String?
+  email     String?
+  address   String?
+  note      String?
+  active    Boolean        @default(true)
+  createdAt DateTime       @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  updatedAt DateTime       @updatedAt
+  purchaseOrders PurchaseOrder[]
+}
+
+model PurchaseOrder {
+  id          String               @id @default(cuid())
+  number      String               @unique
+  supplierId  String
+  supplier    Supplier             @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  warehouseId String?
+  warehouse   Warehouse?           @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
+  status      PurchaseOrderStatus  @default(Draft)
+  expectedAt  DateTime?
+  orderedAt   DateTime?
+  createdAt   DateTime             @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  updatedAt   DateTime             @updatedAt
+  lines       PurchaseOrderLine[]
+  receipts    Receipt[]
+
+  @@index([warehouseId])
+}
+
+enum PurchaseOrderStatus {
+  Draft
+  Sent
+  Partial
+  Received
+  Cancelled
+}
+
+model PurchaseOrderLine {
+  id           String        @id @default(cuid())
+  purchaseOrderId String
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  productId    String
+  product      Product       @relation(fields: [productId], references: [id], onDelete: Restrict)
+  qtyOrdered   Int
+  qtyReceived  Int           @default(0)
+  unitCostCents Int?
+}
+
+model Receipt {
+  id            String       @id @default(cuid())
+  purchaseOrderId String?
+  purchaseOrder PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
+  supplierId    String?
+  warehouseId   String
+  warehouse     Warehouse    @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  receivedById  String
+  receivedAt    DateTime     @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  note          String?
+  lines         ReceiptLine[]
+}
+
+model ReceiptLine {
+  id            String   @id @default(cuid())
+  receiptId     String
+  receipt       Receipt  @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  productId     String
+  product       Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+  qtyAccepted   Int
+  qtyRejected   Int      @default(0)
+  condition     String   @default("Good")
+  unitCostCents Int?
+}
+
+enum PickListStatus {
+  Picking
+  Picked
+  Packed
+}
+
+model PickList {
+  id             String               @id @default(cuid())
+  orderId        String               @unique
+  order          Order                @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  warehouseId    String?
+  warehouse      Warehouse?           @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
+  status         PickListStatus       @default(Picking)
+  pickedById     String?
+  pickedBy       User?                @relation("PickedBy", fields: [pickedById], references: [id], onDelete: SetNull)
+  packedById     String?
+  packedBy       User?                @relation("PackedBy", fields: [packedById], references: [id], onDelete: SetNull)
+  pickedAt       DateTime?
+  packedAt       DateTime?
+  station        String?
+  lines          PickListLine[]
+  createdAt      DateTime             @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  updatedAt      DateTime             @updatedAt
+
+  @@index([warehouseId, status])
+}
+
+model PickListLine {
+  id            String     @id @default(cuid())
+  pickListId    String
+  pickList      PickList   @relation(fields: [pickListId], references: [id], onDelete: Cascade)
+  orderItemId   String
+  orderItem     OrderItem  @relation(fields: [orderItemId], references: [id], onDelete: Restrict)
+  qtyOrdered    Int
+  qtyPicked     Int        @default(0)
+  shortPickQty  Int        @default(0)
+  shortPickReason String?
+  confirmed     Boolean    @default(false)
+  confirmedAt   DateTime?
+  createdAt     DateTime   @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  updatedAt     DateTime   @updatedAt
+
+  @@unique([pickListId, orderItemId])
+}
+
+// ---------------------------------------------------------------------------
+// HRM — employees, attendance, leave, payroll, reviews, documents
+// (docs/hrm-plan.md). Staff only: one Employee per staff User; riders and
+// customers are out of scope. All money is integer cents in store currency.
+// ---------------------------------------------------------------------------
+
+enum EmploymentType {
+  FullTime
+  PartTime
+  Contract
+  Intern
+}
+
+enum EmployeeStatus {
+  Active
+  Probation
+  Exited
+}
+
+enum AttendanceStatus {
+  Present
+  HalfDay
+  Absent
+  Leave
+}
+
+enum LeaveType {
+  Annual
+  Sick
+  Casual
+  Unpaid
+  Other
+}
+
+enum LeaveStatus {
+  Pending
+  Approved
+  Rejected
+  Cancelled
+}
+
+enum EmployeeDocumentKind {
+  Contract
+  NationalId
+  Passport
+  Tax
+  Certificate
+  Other
+}
+
+model Employee {
+  id                    String                @id @default(cuid())
+  employeeCode          String                @unique
+  userId                String                @unique
+  user                  User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  applicationId         String?               @unique
+  application           CareerApplication?    @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  designation           String
+  department            String
+  employmentType        EmploymentType        @default(FullTime)
+  status                EmployeeStatus        @default(Active)
+  joinDate              DateTime
+  probationEndDate      DateTime?
+  exitDate              DateTime?
+  monthlySalaryCents    Int?
+  emergencyContactName  String?
+  emergencyContactPhone String?
+  notes                 String?
+  createdAt             DateTime              @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  updatedAt             DateTime              @updatedAt
+  attendance            AttendanceRecord[]
+  leaveRequests         LeaveRequest[]
+  payslips              Payslip[]
+  reviews               PerformanceReview[]
+  documents             EmployeeDocument[]
+
+  @@index([status, department])
+  @@index([joinDate])
+}
+
+model AttendanceRecord {
+  id            String           @id @default(cuid())
+  employeeId    String
+  employee      Employee         @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  /** Bangladesh-midnight instant of the calendar day this record covers. */
+  date          DateTime
+  status        AttendanceStatus
+  checkInAt     DateTime?
+  checkOutAt    DateTime?
+  workedMinutes Int?
+  note          String?
+  markedById    String?
+  markedBy      User?            @relation(fields: [markedById], references: [id], onDelete: SetNull)
+  createdAt     DateTime         @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  updatedAt     DateTime         @updatedAt
+
+  @@unique([employeeId, date])
+  @@index([date])
+}
+
+model LeaveRequest {
+  id          String       @id @default(cuid())
+  employeeId  String
+  employee    Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  type        LeaveType
+  /** Bangladesh-midnight instants; both are inclusive calendar days. */
+  startDate   DateTime
+  endDate     DateTime
+  reason      String
+  status      LeaveStatus  @default(Pending)
+  decidedById String?
+  decidedBy   User?        @relation(fields: [decidedById], references: [id], onDelete: SetNull)
+  decidedAt   DateTime?
+  createdAt   DateTime     @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  updatedAt   DateTime     @updatedAt
+
+  @@index([status, startDate])
+  @@index([employeeId, startDate])
+}
+
+model PayrollRun {
+  id            String       @id @default(cuid())
+  /** First Bangladesh-midnight instant of the salary month. */
+  month         DateTime     @unique
+  currencyCode  String
+  note          String?
+  createdByById String?
+  createdBy     User?        @relation(fields: [createdByById], references: [id], onDelete: SetNull)
+  createdAt     DateTime     @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  payslips      Payslip[]
+
+  @@index([month])
+}
+
+model Payslip {
+  id              String      @id @default(cuid())
+  runId           String
+  run             PayrollRun  @relation(fields: [runId], references: [id], onDelete: Cascade)
+  employeeId      String
+  employee        Employee    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  baseSalaryCents Int
+  allowancesCents Int         @default(0)
+  deductionsCents Int         @default(0)
+  /** base + allowances − deductions, always recomputed server-side. */
+  netCents        Int
+  note            String?
+  paidAt          DateTime?
+  createdAt       DateTime    @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  updatedAt       DateTime    @updatedAt
+
+  @@unique([runId, employeeId])
+  @@index([employeeId])
+}
+
+model PerformanceReview {
+  id           String   @id @default(cuid())
+  employeeId   String
+  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  reviewerId   String
+  reviewer     User     @relation(fields: [reviewerId], references: [id], onDelete: Cascade)
+  periodStart  DateTime
+  periodEnd    DateTime
+  /** 1 (needs support) – 5 (exceptional). */
+  rating       Int
+  summary      String?
+  strengths     String?
+  improvements String?
+  goals        String?
+  createdAt    DateTime @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  updatedAt    DateTime @updatedAt
+
+  @@index([employeeId, periodStart])
+}
+
+model EmployeeDocument {
+  id         String               @id @default(cuid())
+  employeeId String
+  employee   Employee             @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  kind       EmployeeDocumentKind
+  title      String
+  /** Stored file (PDF/image, like career resumes) or an external link. */
+  fileName   String?
+  mimeType   String?
+  bytes      Bytes?
+  url        String?
+  createdAt  DateTime             @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+
+  @@index([employeeId, kind])
+}

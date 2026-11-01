@@ -1,0 +1,19 @@
+{
+  "name": "My Deliveries",
+  "short_name": "Deliveries",
+  "description": "Manage your assigned StoreLaunch deliveries",
+  "start_url": "/rider",
+  "scope": "/rider",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f8f9fb",
+  "theme_color": "#4f46e5",
+  "icons": [
+    {
+      "src": "/rider-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: storelaunch
+          POSTGRES_PASSWORD: ci-only-password
+          POSTGRES_DB: storelaunch
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U storelaunch -d storelaunch"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://storelaunch:ci-only-password@localhost:5432/storelaunch
+      AUTH_SECRET: ci-only-auth-secret-change-before-deploy-0123456789
+      LICENSE_SECRET: ci-only-license-secret-change-before-deploy-0123
+      NEXT_PUBLIC_BASE_URL: https://example.invalid
+      SMS_PROVIDER: disabled
+      SSLCOMMERZ_SANDBOX: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run db:generate
+      - run: npx prisma validate
+      - run: npx prisma migrate deploy
+      - run: npm run test:ci
+      - run: npm run format:check
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run build

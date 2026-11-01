@@ -1,0 +1,2 @@
+ALTER TABLE "Campaign"
+  ADD COLUMN "showInCart" BOOLEAN NOT NULL DEFAULT false;

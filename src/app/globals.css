@@ -1,0 +1,252 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --product-card-width: clamp(8.5rem, calc((100vw - 3rem) / 2), 13rem);
+  --product-card-gap: 1rem;
+  --background: #fafafa;
+  --foreground: #09090b;
+  --surface: #ffffff;
+  --surface-2: #f4f4f5;
+  --primary-brand: #0f7b4f;
+  --primary: var(--primary-brand);
+  --primary-dark: #0a5c3a;
+  --primary-light: #e6f4ec;
+  --accent: #e11d48;
+  --muted: #71717a;
+  --border: #e4e4e7;
+  --ring: rgb(15 123 79 / 0.25);
+}
+
+.dark {
+  --background: #09090b;
+  --foreground: #fafafa;
+  --surface: #18181b;
+  --surface-2: #27272a;
+  --primary: color-mix(in oklab, var(--primary-brand) 72%, white);
+  --primary-dark: color-mix(in oklab, var(--primary-brand) 55%, white);
+  --primary-light: color-mix(in oklab, var(--primary-brand) 18%, transparent);
+  --accent: #fb7185;
+  --muted: #a1a1aa;
+  --border: #27272a;
+  --ring: color-mix(in oklab, var(--primary-brand) 40%, transparent);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-primary: var(--primary);
+  --color-primary-dark: var(--primary-dark);
+  --color-primary-light: var(--primary-light);
+  --color-accent: var(--accent);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-ring: var(--ring);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+html[lang="bn"] body {
+  font-family: var(--font-bengali), var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+::selection {
+  background: var(--primary-light);
+  color: var(--primary);
+}
+
+@layer components {
+  /* Buttons */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 bg-primary text-white shadow-sm hover:bg-primary-dark active:scale-[0.98];
+  }
+  .btn-outline {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 border border-border bg-surface text-foreground shadow-sm hover:border-primary hover:text-primary active:scale-[0.98];
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 text-muted hover:bg-primary-light hover:text-primary;
+  }
+  .btn-lg {
+    @apply px-6 py-3 text-base;
+  }
+  .btn-sm {
+    @apply px-3 py-1.5 text-xs;
+  }
+  .btn-icon {
+    @apply inline-flex items-center justify-center rounded-full p-2 transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  /* Inputs */
+  .input {
+    @apply w-full rounded-lg border border-border bg-surface px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted/60 outline-none transition-all duration-150 focus:border-primary focus:ring-2 focus:ring-ring;
+  }
+
+  /* Cards */
+  .card {
+    @apply rounded-xl border border-border/60 bg-surface shadow-sm;
+  }
+  .card-hover {
+    @apply transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md;
+  }
+
+  /* Badges */
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold;
+  }
+  .badge-primary {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold bg-primary-light text-primary;
+  }
+  .badge-accent {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold bg-accent text-white;
+  }
+  .badge-muted {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold bg-surface-2 text-muted;
+  }
+}
+
+/* Skeleton shimmer */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+.skeleton {
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--border) 50%, var(--surface-2) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.8s ease-in-out infinite;
+}
+
+/* Fade-in */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-fade-up {
+  animation: fade-up 0.4s ease-out both;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out both;
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-scale-in {
+  animation: scale-in 0.2s ease-out both;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-toast-in {
+  animation: toast-in 0.25s ease-out both;
+}
+
+/* Use the same card dimensions in carousels and every catalog listing. */
+.product-card {
+  width: var(--product-card-width);
+  max-width: 100%;
+}
+.product-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, min(100%, var(--product-card-width)));
+  gap: var(--product-card-gap);
+}
+
+/* Keep transient messages above the floating scroll control. */
+body:has([data-scroll-top]) [data-toast-stack] {
+  bottom: 8.25rem;
+}
+
+.announcement-track {
+  display: flex;
+  width: max-content;
+  animation: announcement-scroll-left var(--announcement-duration, 24s) linear infinite;
+}
+.announcement-marquee[data-direction="right"] .announcement-track {
+  animation-name: announcement-scroll-right;
+}
+.announcement-marquee:hover .announcement-track,
+.announcement-marquee:focus-within .announcement-track {
+  animation-play-state: paused;
+}
+@keyframes announcement-scroll-left {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+@keyframes announcement-scroll-right {
+  from {
+    transform: translateX(-50%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .announcement-track {
+    animation: none;
+    width: 100%;
+    justify-content: center;
+  }
+  .announcement-track > [aria-hidden="true"] {
+    display: none;
+  }
+  .announcement-track > span:first-child {
+    white-space: normal;
+  }
+}
+@media (min-width: 1024px) {
+  body:has([data-scroll-top]) [data-toast-stack] {
+    bottom: 5.25rem;
+  }
+}

@@ -1,0 +1,10 @@
+node_modules/
+.next/
+.next-screen-test/
+out/
+build/
+coverage/
+storage/
+public/uploads/
+package-lock.json
+*.min.*
