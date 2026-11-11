@@ -16,6 +16,9 @@ import { PREPARATION_STATUSES, ORDER_STATUS_LABELS } from "./order-status";
 import { creditWalletBalance } from "./wallet-balance";
 import { applyWarehouseStockDelta } from "./stock-ledger";
 import { rewardDeliveredReferral } from "./referrals";
+import { logger } from "./logger";
+
+const log = logger.child({ scope: "order-lifecycle" });
 
 type Result = { ok: true; number: string } | { ok: false; error: string };
 
@@ -44,7 +47,7 @@ export async function transitionOrder(
       const order = await tx.order.findUnique({ where: { id: orderId }, include: { items: true } });
       if (!order) return { ok: false, error: "Order not found" };
       if ((PREPARATION_STATUSES as readonly string[]).includes(next)) {
-        if (options.actor?.role !== Roles.Admin)
+        if (options.actor?.role !== Roles.Admin && options.actor?.role !== Roles.SuperAdmin)
           return { ok: false, error: "Only an administrator can update order preparation" };
         if (order.status === next) return { ok: true, number: order.number };
       }
@@ -267,12 +270,15 @@ export async function transitionOrder(
       return { ok: true, number: order.number };
     })
     .catch((error: unknown): Result => {
-      if (error instanceof Error && error.message === "WALLET_BALANCE_LIMIT")
+      if (error instanceof Error && error.message === "WALLET_BALANCE_LIMIT") {
+        log.warn("transitionOrder rejected", { code: "WALLET_BALANCE_LIMIT", orderId, next });
         return {
           ok: false,
           error:
             "Cancellation was not applied because the refund would exceed the supported wallet balance. Contact finance to resolve the balance first",
         };
+      }
+      log.error("transitionOrder failed", { error, orderId, next });
       throw error;
     });
 }

@@ -1,5 +1,5 @@
 import { OrderEventTypes, OrderStatuses, PaymentMethods } from "@backend/lib/enums.mjs";
-import type { OrderEvent } from "@backend/generated/prisma/client";
+import type { OrderEventView } from "@backend/lib/order-events";
 import { formatPrice } from "@backend/lib/money";
 import { CUSTOMER_ORDER_EVENTS } from "@backend/lib/order-status";
 
@@ -112,14 +112,14 @@ function customerRows({
   number,
   rider,
 }: {
-  visible: OrderEvent[];
+  visible: OrderEventView[];
   status?: string;
   paymentMethod?: string;
   number?: string;
   rider?: { name: string; phone: string } | null;
 }): TimelineRow[] {
   const milestoneTypes = new Set(milestones.map((milestone) => milestone.type));
-  const earliest = new Map<string, OrderEvent>();
+  const earliest = new Map<string, OrderEventView>();
   for (const event of visible) if (!earliest.has(event.type)) earliest.set(event.type, event);
   const extras = visible.filter((event) => !milestoneTypes.has(event.type));
 
@@ -216,7 +216,7 @@ export function OrderTimeline({
   number,
   rider,
 }: {
-  events: OrderEvent[];
+  events: OrderEventView[];
   internal?: boolean;
   status?: string;
   currencyCode: string | null;

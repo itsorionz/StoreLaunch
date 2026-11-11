@@ -4,13 +4,12 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getService } from "@backend/lib/session";
 import { getUnreadCounts } from "@backend/lib/chat";
-import { OPEN_TICKET_STATUSES } from "@backend/lib/support-dashboard";
-import { db } from "@backend/lib/db";
-import { ChatConversationStatuses } from "@backend/lib/enums.mjs";
+import { getSupportBadgeCounts } from "@backend/lib/support-dashboard";
 import { logoutAction } from "@backend/actions/auth";
 import { ServiceNav, ServiceBottomNav } from "@frontend/components/service/service-nav";
 import { AppSearch, AppSearchForm } from "@frontend/components/layout/app-search";
 import { SearchContexts } from "@backend/lib/search-config.mjs";
+import { RouteLoading } from "@frontend/components/ui/route-loading";
 
 export const metadata = {
   title: "Support",
@@ -25,11 +24,12 @@ export const viewport = {
 async function ServiceShell({ children }: { children: React.ReactNode }) {
   const agent = await getService();
   if (!agent) redirect("/login?callbackUrl=/support");
-  const [unread, closedCount, ticketCount] = await Promise.all([
+  const [unread, badges] = await Promise.all([
     getUnreadCounts({ id: agent.id, role: agent.role }),
-    db.chatConversation.count({ where: { status: ChatConversationStatuses.Closed } }),
-    db.supportTicket.count({ where: { status: { in: [...OPEN_TICKET_STATUSES] } } }),
+    getSupportBadgeCounts(),
   ]);
+  const closedCount = badges.closedConversations;
+  const ticketCount = badges.openTickets;
   const agentName = agent.name || agent.email || "Support";
 
   return (
@@ -55,8 +55,26 @@ async function ServiceShell({ children }: { children: React.ReactNode }) {
             </div>
             <ThemeToggle className="text-muted" />
           </div>
-          <form action={logoutAction} className="mt-2 px-2">
-            <button type="submit" className="text-sm font-semibold text-accent hover:underline">
+          <form action={logoutAction} className="mt-1 px-2">
+            <button
+              type="submit"
+              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-accent transition-colors hover:bg-accent/5"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" x2="9" y1="12" y2="12" />
+              </svg>
               Logout
             </button>
           </form>
@@ -108,7 +126,7 @@ async function ServiceShell({ children }: { children: React.ReactNode }) {
 
 export default function SupportLayout({ children }: { children: React.ReactNode }) {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-background" />}>
+    <Suspense fallback={<RouteLoading className="min-h-screen bg-background" />}>
       <ServiceShell>{children}</ServiceShell>
     </Suspense>
   );

@@ -13,7 +13,13 @@ import { CodRemittanceForm } from "@frontend/components/admin/reconciliation-for
 import { OrderTimeline } from "@frontend/components/orders/order-timeline";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { db } from "@backend/lib/db";
+import {
+  getDeliveryCompanyById,
+  getOrderDetail,
+  getRiderById,
+  listActiveDeliveryCompanies,
+  listActiveRiders,
+} from "@backend/lib/admin-orders-queries";
 import { formatPrice } from "@backend/lib/money";
 import { ORDER_STATUS_LABELS } from "@backend/lib/order-status";
 import { OrderStatusButtons } from "@frontend/components/admin/order-status-buttons";
@@ -31,46 +37,9 @@ export default async function AdminOrderDetailPage({
   await requireAdminPage();
   const { number } = await params;
   const [order, activeRiders, activeCompanies] = await Promise.all([
-    db.order.findUnique({
-      where: { number },
-      include: {
-        paymentAttempt: true,
-        refunds: { orderBy: { createdAt: "desc" } },
-        afterSalesRequests: {
-          include: { refunds: true, items: { include: { orderItem: true } } },
-          orderBy: { requestedAt: "desc" },
-        },
-        replacementForOrder: { select: { number: true } },
-        deliveryProof: {
-          select: {
-            id: true,
-            orderId: true,
-            riderId: true,
-            receivedBy: true,
-            relationship: true,
-            note: true,
-            photoKey: true,
-            photoMime: true,
-            createdAt: true,
-          },
-        },
-        deliveryAttempts: { orderBy: { createdAt: "desc" } },
-        items: true,
-        user: { select: { name: true, email: true } },
-        codCollection: { include: { settlementLines: { select: { appliedCents: true } } } },
-        events: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
-      },
-    }),
-    db.rider.findMany({
-      where: { active: true, OR: [{ userId: null }, { user: { active: true } }] },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true, phone: true },
-    }),
-    db.deliveryCompany.findMany({
-      where: { active: true },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true },
-    }),
+    getOrderDetail(number),
+    listActiveRiders(),
+    listActiveDeliveryCompanies(),
   ]);
   if (!order) notFound();
   const orderCurrency =
@@ -79,24 +48,16 @@ export default async function AdminOrderDetailPage({
 
   const riders =
     order.riderId && !activeRiders.some((r) => r.id === order.riderId)
-      ? [
-          ...activeRiders,
-          await db.rider.findUnique({
-            where: { id: order.riderId },
-            select: { id: true, name: true, phone: true },
-          }),
-        ].filter((r): r is { id: string; name: string; phone: string } => r !== null)
+      ? [...activeRiders, await getRiderById(order.riderId)].filter(
+          (r): r is { id: string; name: string; phone: string } => r !== null,
+        )
       : activeRiders;
 
   const companies =
     order.deliveryCompanyId && !activeCompanies.some((c) => c.id === order.deliveryCompanyId)
-      ? [
-          ...activeCompanies,
-          await db.deliveryCompany.findUnique({
-            where: { id: order.deliveryCompanyId },
-            select: { id: true, name: true },
-          }),
-        ].filter((c): c is { id: string; name: string } => c !== null)
+      ? [...activeCompanies, await getDeliveryCompanyById(order.deliveryCompanyId)].filter(
+          (c): c is { id: string; name: string } => c !== null,
+        )
       : activeCompanies;
 
   return (

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireWarehousePage } from "@backend/lib/session";
-import { db } from "@backend/lib/db";
+import { getPackedPickList } from "@backend/lib/warehouse-queries";
 import {
   ConfirmPackLineButton,
   MarkPackedButton,
@@ -16,13 +16,7 @@ export default async function WarehousePackDetailPage({
 }) {
   await requireWarehousePage();
   const { id } = await params;
-  const pickList = await db.pickList.findUnique({
-    where: { id },
-    include: {
-      order: { select: { number: true, recipientName: true } },
-      lines: { include: { orderItem: true }, orderBy: { id: "asc" } },
-    },
-  });
+  const pickList = await getPackedPickList(id);
   if (!pickList || pickList.status !== "Picked") notFound();
 
   const allConfirmed = pickList.lines.every((line) => line.confirmed);

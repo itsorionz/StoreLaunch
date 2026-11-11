@@ -1,15 +1,11 @@
-import { db } from "@backend/lib/db";
+import { getFeedbackSubmissions } from "@backend/lib/admin-people-queries";
 import { requireAdminPage } from "@backend/lib/session";
 
 export const metadata = { title: "Customer feedback — Admin" };
 
 export default async function AdminFeedbackPage() {
   await requireAdminPage();
-  const submissions = await db.feedback.findMany({
-    orderBy: { createdAt: "desc" },
-    take: 100,
-    include: { user: { select: { name: true, email: true } } },
-  });
+  const submissions = await getFeedbackSubmissions();
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-bold">Customer feedback</h1>

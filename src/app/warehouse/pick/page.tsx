@@ -1,19 +1,12 @@
 import Link from "next/link";
 import { requireWarehousePage } from "@backend/lib/session";
-import { db } from "@backend/lib/db";
+import { listWarehousePickQueue } from "@backend/lib/warehouse-queries";
 
 export const metadata = { title: "Pick queue" };
 
 export default async function WarehousePickQueuePage() {
   await requireWarehousePage();
-  const pickLists = await db.pickList.findMany({
-    where: { status: "Picking" },
-    include: {
-      order: { select: { number: true, city: true, warehouse: { select: { name: true } } } },
-      lines: { select: { id: true } },
-    },
-    orderBy: { createdAt: "asc" },
-  });
+  const pickLists = await listWarehousePickQueue();
 
   return (
     <div className="space-y-6">

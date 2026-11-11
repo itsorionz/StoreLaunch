@@ -13,6 +13,9 @@ import { initiateSslcommerzSession, querySslcommerzPayment } from "./sslcommerz"
 import { fulfillPaidOrder } from "./fulfillment";
 import { transitionOrder } from "./order-lifecycle";
 import { recordOrderEvent } from "./order-events";
+import { logger } from "./logger";
+
+const log = logger.child({ scope: "payment-recovery" });
 
 type PaymentActionResult = { ok: boolean; message: string; gatewayUrl?: string };
 
@@ -85,11 +88,16 @@ export async function resumeOrderPayment(orderId: string): Promise<PaymentAction
     failUrl: "/api/payments/sslcommerz/return",
     cancelUrl: "/api/payments/sslcommerz/return",
     ipnUrl: "/api/payments/sslcommerz/ipn",
-  }).catch(() => ({
-    ok: false as const,
-    error: "Provider response was interrupted",
-    uncertain: true,
-  }));
+  }).catch((error) => {
+    // The gateway call was interrupted — recorded so a provider outage is
+    // visible; the recovery loop still treats the payment as uncertain.
+    log.warn("session initiate interrupted", { orderId, error });
+    return {
+      ok: false as const,
+      error: "Provider response was interrupted",
+      uncertain: true,
+    };
+  });
   const persisted = await db.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM "Order" WHERE id = ${orderId} FOR UPDATE`;
     const current = await tx.order.findUniqueOrThrow({ where: { id: orderId } });
@@ -270,10 +278,7 @@ export async function runPaymentRecoveryBatch() {
     try {
       results.push({ orderId: attempt.orderId, ...(await recoverOrderPayment(attempt.orderId)) });
     } catch (error) {
-      console.error("[payment-recovery] Batch item failed", {
-        orderId: attempt.orderId,
-        errorType: error instanceof Error ? error.name : "UnknownError",
-      });
+      log.error("batch item failed", { error, orderId: attempt.orderId });
       results.push({
         orderId: attempt.orderId,
         ok: false,

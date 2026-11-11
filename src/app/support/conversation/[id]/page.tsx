@@ -2,8 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getService } from "@backend/lib/session";
 import { getConversation } from "@backend/lib/chat";
-import { db } from "@backend/lib/db";
-import { ChatConversationStatuses, SupportTicketStatuses } from "@backend/lib/enums.mjs";
+import { listConversationCustomerContext } from "@backend/lib/support-queries";
+import { ChatConversationStatuses } from "@backend/lib/enums.mjs";
 import { getDict } from "@frontend/i18n/dict";
 import { formatPrice } from "@backend/lib/money";
 import { StatusBadge } from "@frontend/components/admin/admin-ui";
@@ -44,31 +44,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
 
   // Context rail: the customer's recent orders and open cases so the agent
   // never leaves the thread to answer "where is my order?".
-  const [recentOrders, openTickets] = await Promise.all([
-    db.order.findMany({
-      where: { userId: thread.customer.id },
-      orderBy: { createdAt: "desc" },
-      take: 4,
-      select: {
-        id: true,
-        number: true,
-        status: true,
-        totalCents: true,
-        currencySymbol: true,
-        currencyCode: true,
-        createdAt: true,
-      },
-    }),
-    db.supportTicket.findMany({
-      where: {
-        customerId: thread.customer.id,
-        status: { notIn: [SupportTicketStatuses.Closed] },
-      },
-      orderBy: { lastActivityAt: "desc" },
-      take: 4,
-      select: { id: true, number: true, subject: true, status: true, priority: true },
-    }),
-  ]);
+  const { recentOrders, openTickets } = await listConversationCustomerContext(thread.customer.id);
 
   return (
     <div className="space-y-4">

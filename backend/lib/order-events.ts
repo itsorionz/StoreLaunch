@@ -1,6 +1,15 @@
 import { InboxCategories, OrderEventTypes, Roles } from "@backend/lib/enums.mjs";
 import "server-only";
-import type { OrderEventType, OrderStatus, Prisma } from "@backend/generated/prisma/client";
+import type {
+  OrderEvent,
+  OrderEventType,
+  OrderStatus,
+  Prisma,
+} from "@backend/generated/prisma/client";
+
+// View type for presentation code: the timeline UI must not import the
+// generated ORM client, so the row shape is re-exported from here.
+export type OrderEventView = OrderEvent;
 
 export type OrderActor = {
   id: string;
@@ -8,6 +17,7 @@ export type OrderActor = {
   role:
     | typeof Roles.Customer
     | typeof Roles.Admin
+    | typeof Roles.SuperAdmin
     | typeof Roles.Rider
     | typeof Roles.Support
     | typeof Roles.Warehouse

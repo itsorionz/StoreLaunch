@@ -18,7 +18,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       async authorize(credentials) {
         const user = await consumeLoginProof(credentials?.loginTicket, credentials?.role);
         // Riders and support agents don't shop, so their guest basket stays untouched.
-        if (!user || user.role === Roles.Rider || user.role === Roles.Support) return user;
+        if (!user || user.role === Roles.Rider || user.role === Roles.Support)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          return user as any;
         const cookieStore = await cookies();
         const guestCartId = cookieStore.get(CART_COOKIE)?.value;
         if (guestCartId) {
@@ -26,7 +28,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           await mergeGuestCartIntoUserCart(guestCartId, user.id);
           cookieStore.delete(CART_COOKIE);
         }
-        return user;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return user as any;
       },
     }),
   ],

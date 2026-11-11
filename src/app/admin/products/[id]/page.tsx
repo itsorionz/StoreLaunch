@@ -1,5 +1,9 @@
 import { notFound } from "next/navigation";
-import { db } from "@backend/lib/db";
+import {
+  getAdminProductDetail,
+  listProductFormBrands,
+  listProductFormCategories,
+} from "@backend/lib/products-queries";
 import { ProductForm } from "@frontend/components/admin/product-form";
 import { InventoryAdjustmentForm } from "@frontend/components/admin/inventory-adjustment-form";
 import { randomUUID } from "node:crypto";
@@ -9,15 +13,9 @@ export const metadata = { title: "Edit product — Admin" };
 export default async function EditProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const [product, categories, brands] = await Promise.all([
-    db.product.findUnique({
-      where: { id },
-      include: { inventoryAdjustments: { orderBy: { createdAt: "desc" }, take: 20 } },
-    }),
-    db.category.findMany({
-      orderBy: [{ order: "asc" }, { name: "asc" }],
-      select: { id: true, name: true, nameBn: true, parentId: true },
-    }),
-    db.brand.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, nameBn: true } }),
+    getAdminProductDetail(id),
+    listProductFormCategories(),
+    listProductFormBrands(),
   ]);
   if (!product) notFound();
 

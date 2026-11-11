@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireSalesPage } from "@backend/lib/session";
-import { db } from "@backend/lib/db";
 import { OrderSources } from "@backend/lib/enums.mjs";
+import { getSalesOrderDetail } from "@backend/lib/sales-queries";
 import { PrintButton } from "@frontend/components/sales/print-button";
 
 export const metadata = { title: "Sale" };
@@ -10,25 +10,7 @@ export const metadata = { title: "Sale" };
 export default async function SalesOrderPage({ params }: { params: Promise<{ number: string }> }) {
   await requireSalesPage();
   const { number } = await params;
-  const order = await db.order.findUnique({
-    where: { number },
-    include: {
-      items: true,
-      warehouse: { select: { name: true, code: true } },
-      deliveryCompany: { select: { name: true } },
-      rider: { select: { name: true, phone: true } },
-      events: {
-        orderBy: { createdAt: "asc" },
-        select: {
-          id: true,
-          type: true,
-          message: true,
-          actorName: true,
-          createdAt: true,
-        },
-      },
-    },
-  });
+  const order = await getSalesOrderDetail(number);
   if (!order || order.source !== OrderSources.SalesRep) notFound();
 
   const symbol = order.currencySymbol ?? "৳";

@@ -20,18 +20,6 @@ const slides = [
     linkUrl: "/products?flashSale=1",
     order: 2,
   },
-  {
-    imageUrl: "/banners/honey-harvest.svg",
-    title: "Honey harvest deals",
-    linkUrl: "/products?onSale=1",
-    order: 3,
-  },
-  {
-    imageUrl: "/banners/spice-market.svg",
-    title: "New arrivals in store",
-    linkUrl: "/products?sort=newest",
-    order: 4,
-  },
 ];
 
 async function main() {

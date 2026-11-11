@@ -52,7 +52,9 @@ export function DispatchBoard({
       setError(null);
       const result = await openDailyManifests();
       if (!result.ok) {
-        setError(result.error ?? "Could not open manifests");
+        const message = result.error ?? "Could not open manifests";
+        setError(message);
+        toast(message, "error");
         return;
       }
       toast(
@@ -77,7 +79,9 @@ export function DispatchBoard({
       setError(null);
       const result = await handoverManifest(manifest.id);
       if (!result.ok) {
-        setError(result.error ?? "Handover failed");
+        const message = result.error ?? "Handover failed";
+        setError(message);
+        toast(message, "error");
         return;
       }
       toast(`Handed over ${result.orderNumber} — parcels are with the carrier`);
@@ -94,7 +98,9 @@ export function DispatchBoard({
       formData.set("status", "Pending");
       const result = await createShipment(null, formData);
       if (!result.ok) {
-        setError(result.error ?? "Could not create the shipment");
+        const message = result.error ?? "Could not create the shipment";
+        setError(message);
+        toast(message, "error");
         return;
       }
       toast(`${order.number} dispatched`);

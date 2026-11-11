@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { useRouter } from "next/navigation";
 import { confirmPackLine, markPacked, type AdminActionResult } from "@backend/actions/admin";
+import { ActionResultToast } from "@frontend/components/ui/validated-form";
 
 const EMPTY: AdminActionResult | null = null;
 
@@ -27,6 +28,7 @@ export function ConfirmPackLineButton({
   );
   return (
     <form action={formAction}>
+      <ActionResultToast result={state} successMessage="Line confirmed." />
       <button
         type="submit"
         disabled={pending}
@@ -55,6 +57,7 @@ export function MarkPackedButton({ pickListId }: { pickListId: string }) {
   );
   return (
     <form action={formAction}>
+      <ActionResultToast result={state} successMessage="Order marked packed." />
       <button
         type="submit"
         disabled={pending}

@@ -1,6 +1,10 @@
 import Link from "next/link";
-import { db } from "@backend/lib/db";
-import { PromotionStatuses, PromotionAudiences, Roles } from "@backend/lib/enums.mjs";
+import {
+  getPromotionsSummary,
+  listPromotionReadCounts,
+  listPromotions,
+} from "@backend/lib/admin-promotion-queries";
+import { PromotionAudiences, PromotionStatuses } from "@backend/lib/enums.mjs";
 
 export const metadata = { title: "Customer promotions - Admin" };
 
@@ -11,25 +15,11 @@ export default async function PromotionsPage({
 }) {
   const params = await searchParams;
   const requestedPage = /^\d{1,6}$/.test(params.page ?? "") ? Math.max(1, Number(params.page)) : 1;
-  const [total, drafts, sent, customers] = await Promise.all([
-    db.promotion.count(),
-    db.promotion.count({ where: { status: PromotionStatuses.Draft } }),
-    db.promotion.count({ where: { status: PromotionStatuses.Sent } }),
-    db.user.count({ where: { active: true, roles: { has: Roles.Customer } } }),
-  ]);
+  const [total, drafts, sent, customers] = await getPromotionsSummary();
   const pages = Math.max(1, Math.ceil(total / 20));
   const page = Math.min(requestedPage, pages);
-  const promotions = await db.promotion.findMany({
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    skip: (page - 1) * 20,
-    take: 20,
-    include: { _count: { select: { messages: true } } },
-  });
-  const reads = await db.inboxMessage.groupBy({
-    by: ["promotionId"],
-    where: { promotionId: { in: promotions.map((p) => p.id) }, readAt: { not: null } },
-    _count: true,
-  });
+  const promotions = await listPromotions(page);
+  const reads = await listPromotionReadCounts(promotions.map((p) => p.id));
   const readCounts = new Map(reads.map((row) => [row.promotionId, row._count]));
   return (
     <div className="space-y-6">

@@ -10,14 +10,10 @@ import Link from "next/link";
 import Image from "next/image";
 import { notFound, redirect } from "next/navigation";
 import { getCurrentUser } from "@backend/lib/session";
-import { db } from "@backend/lib/db";
+import { getCustomerOrderByNumber } from "@backend/lib/account-queries";
 import { formatPrice } from "@backend/lib/money";
 import { getStoreSettings } from "@backend/lib/settings";
-import {
-  CUSTOMER_ORDER_EVENTS,
-  ORDER_STATUS_LABELS,
-  PRE_DISPATCH_STATUSES,
-} from "@backend/lib/order-status";
+import { ORDER_STATUS_LABELS, PRE_DISPATCH_STATUSES } from "@backend/lib/order-status";
 
 export const metadata = { title: "Order" };
 
@@ -26,29 +22,7 @@ async function OrderContent({ params }: { params: Promise<{ number: string }> })
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const [order] = await Promise.all([
-    db.order.findUnique({
-      where: { number },
-      include: {
-        paymentAttempt: true,
-        afterSalesRequests: {
-          include: {
-            items: { include: { orderItem: { select: { name: true } } } },
-            refunds: true,
-            replacementOrder: { select: { number: true } },
-          },
-          orderBy: { requestedAt: "desc" },
-        },
-        items: true,
-        events: {
-          where: { type: { in: [...CUSTOMER_ORDER_EVENTS] } },
-          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-        },
-        rider: { select: { name: true, phone: true } },
-        deliveryCompany: { select: { name: true, phone: true, trackingUrl: true } },
-      },
-    }),
-  ]);
+  const [order] = await Promise.all([getCustomerOrderByNumber(number)]);
   if (!order || order.userId !== user.id) notFound();
   const storeSettings = await getStoreSettings();
   const activeAfterSales = order.afterSalesRequests.some(

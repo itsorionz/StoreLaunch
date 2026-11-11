@@ -5,7 +5,7 @@ import { DeliveryEvidence } from "@frontend/components/rider/delivery-evidence";
 import { Suspense } from "react";
 import { notFound, redirect } from "next/navigation";
 import { getRider } from "@backend/lib/session";
-import { db } from "@backend/lib/db";
+import { getRiderOrderDetail } from "@backend/lib/rider-queries";
 import { formatPrice, orderCurrencyLabel } from "@backend/lib/money";
 import { RiderStatusButtons } from "@frontend/components/rider/rider-status-buttons";
 import { RiderBack } from "@frontend/components/rider/rider-back";
@@ -18,35 +18,20 @@ const statusStyles: Record<string, string> = {
   [OrderStatuses.Cancelled]: "bg-muted text-muted",
 };
 
+export default function RiderOrderPage({ params }: { params: Promise<{ number: string }> }) {
+  return (
+    <Suspense fallback={<div className="skeleton h-72 w-full rounded-2xl" />}>
+      <RiderOrderDetail params={params} />
+    </Suspense>
+  );
+}
+
 async function RiderOrderDetail({ params }: { params: Promise<{ number: string }> }) {
   const { number } = await params;
   const ctx = await getRider();
   if (!ctx) redirect("/login?callbackUrl=/rider");
-
-  const [order] = await Promise.all([
-    db.order.findUnique({
-      where: { number },
-      include: {
-        deliveryProof: {
-          select: {
-            id: true,
-            orderId: true,
-            riderId: true,
-            receivedBy: true,
-            relationship: true,
-            note: true,
-            photoKey: true,
-            photoMime: true,
-            createdAt: true,
-          },
-        },
-        deliveryAttempts: { orderBy: { createdAt: "desc" } },
-        codCollection: true,
-        items: { include: { product: { select: { name: true } } } },
-      },
-    }),
-  ]);
-  if (!order || order.riderId !== ctx.rider.id) notFound();
+  const { order, riderId } = await getRiderOrderDetail(number, ctx.rider.id);
+  if (!order || order.riderId !== riderId) notFound();
 
   const codDue =
     order.paymentMethod === PaymentMethods.COD &&
@@ -141,13 +126,5 @@ async function RiderOrderDetail({ params }: { params: Promise<{ number: string }
         />
       </section>
     </div>
-  );
-}
-
-export default function RiderOrderPage({ params }: { params: Promise<{ number: string }> }) {
-  return (
-    <Suspense fallback={<div className="skeleton h-72 w-full rounded-2xl" />}>
-      <RiderOrderDetail params={params} />
-    </Suspense>
   );
 }

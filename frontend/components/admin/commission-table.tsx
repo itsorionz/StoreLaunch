@@ -26,7 +26,9 @@ export function CommissionTable({ rows }: { rows: CommissionRow[] }) {
   const save = (row: CommissionRow) => {
     const percent = Number(draft);
     if (!Number.isFinite(percent) || percent < 0 || percent > 50) {
-      setError("Rate must be between 0% and 50%");
+      const message = "Rate must be between 0% and 50%";
+      setError(message);
+      toast(message, "error");
       return;
     }
     setError(null);
@@ -36,7 +38,9 @@ export function CommissionTable({ rows }: { rows: CommissionRow[] }) {
       formData.set("commissionBps", String(Math.round(percent * 100)));
       const result = await saveSalesRepCommission(null, formData);
       if (!result.ok) {
-        setError(result.error ?? "Could not save the rate");
+        const message = result.error ?? "Could not save the rate";
+        setError(message);
+        toast(message, "error");
         return;
       }
       toast(`Commission rate for ${row.name} set to ${percent}%`);

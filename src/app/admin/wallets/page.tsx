@@ -1,5 +1,4 @@
-import { Roles } from "@backend/lib/enums.mjs";
-import { db } from "@backend/lib/db";
+import { listWalletCustomers } from "@backend/lib/admin-people-queries";
 import { getStoreSettings } from "@backend/lib/settings";
 import { formatPrice } from "@backend/lib/money";
 import { WalletActions } from "@frontend/components/admin/wallet-actions";
@@ -29,28 +28,7 @@ export default async function AdminWalletsPage({
   const query = parsed.data;
   const settings = await getStoreSettings();
 
-  const customers = await db.user.findMany({
-    where: {
-      roles: { has: Roles.Customer },
-      ...(query
-        ? {
-            OR: [
-              { name: { contains: query, mode: "insensitive" } },
-              { email: { contains: query, mode: "insensitive" } },
-            ],
-          }
-        : {}),
-    },
-    orderBy: { createdAt: "desc" },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      createdAt: true,
-      wallet: { select: { balanceCents: true } },
-    },
-    take: 200,
-  });
+  const customers = await listWalletCustomers(query);
 
   const totalCents = customers.reduce((s, c) => s + (c.wallet?.balanceCents ?? 0), 0);
 

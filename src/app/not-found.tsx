@@ -1,8 +1,10 @@
 import { Suspense } from "react";
+import { unstable_noStore } from "next/cache";
 import Link from "next/link";
 import { getDict } from "@frontend/i18n/dict";
 
 async function NotFoundContent() {
+  unstable_noStore();
   const dict = await getDict();
   return (
     <div className="w-full flex  flex-col items-center px-4 py-24 text-center">

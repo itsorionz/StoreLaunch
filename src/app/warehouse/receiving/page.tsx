@@ -1,5 +1,9 @@
 import { requireWarehousePage } from "@backend/lib/session";
-import { db } from "@backend/lib/db";
+import {
+  listActiveWarehouses,
+  listOpenPurchaseOrders,
+  listRecentReceipts,
+} from "@backend/lib/warehouse-queries";
 import { ReceivingForm } from "@frontend/components/warehouse/receiving-form";
 
 export const metadata = { title: "Receiving" };
@@ -7,41 +11,12 @@ export const metadata = { title: "Receiving" };
 export default async function WarehouseReceivingPage() {
   const user = await requireWarehousePage();
 
-  const warehouses = await db.warehouse.findMany({
-    where: { active: true },
-    orderBy: [{ isDefault: "desc" }, { name: "asc" }],
-    select: { id: true, name: true, isDefault: true },
-  });
+  const warehouses = await listActiveWarehouses();
   const warehouse = warehouses[0];
 
   const [openPos, receipts] = await Promise.all([
-    warehouse
-      ? db.purchaseOrder.findMany({
-          where: { status: { in: ["Draft", "Sent", "Partial"] } },
-          include: {
-            supplier: { select: { name: true } },
-            lines: {
-              include: { product: { select: { name: true, sku: true } } },
-              select: {
-                productId: true,
-                qtyOrdered: true,
-                qtyReceived: true,
-                product: { select: { name: true, sku: true } },
-              },
-            },
-          },
-          orderBy: { createdAt: "asc" },
-          take: 20,
-        })
-      : Promise.resolve([]),
-    db.receipt.findMany({
-      orderBy: { receivedAt: "desc" },
-      take: 20,
-      include: {
-        warehouse: { select: { name: true } },
-        lines: { select: { qtyAccepted: true, qtyRejected: true } },
-      },
-    }),
+    warehouse ? listOpenPurchaseOrders() : Promise.resolve([]),
+    listRecentReceipts(),
   ]);
 
   const pos = openPos.map((po) => ({

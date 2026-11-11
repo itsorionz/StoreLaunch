@@ -1,5 +1,5 @@
 import { ReviewStatuses } from "@backend/lib/enums.mjs";
-import { db } from "@backend/lib/db";
+import { listReviews } from "@backend/lib/admin-people-queries";
 import { ReviewModerationButtons } from "@frontend/components/admin/review-moderation-buttons";
 
 export const metadata = { title: "Reviews — Admin" };
@@ -13,15 +13,7 @@ export default async function AdminReviewsPage({
   const status = [ReviewStatuses.Pending, ReviewStatuses.Approved, ReviewStatuses.Hidden].find(
     (value) => value === filters.status,
   );
-  const reviews = await db.review.findMany({
-    where: status ? { status: status as never } : undefined,
-    orderBy: { createdAt: "desc" },
-    take: 100,
-    include: {
-      product: { select: { name: true, slug: true } },
-      user: { select: { name: true, email: true } },
-    },
-  });
+  const reviews = await listReviews(status);
 
   const tabs = ["ALL", ReviewStatuses.Pending, ReviewStatuses.Approved, ReviewStatuses.Hidden];
 

@@ -1,7 +1,11 @@
 import { config } from "dotenv";
 import { setTimeout } from "node:timers/promises";
+import { logger } from "../lib/logger";
 
 config({ quiet: true });
+
+const log = logger.child({ scope: "job:payment-recovery" });
+
 async function main() {
   const { runPaymentRecoveryBatch } = await import("../lib/payment-recovery");
   const { db } = await import("../lib/db");
@@ -12,18 +16,12 @@ async function main() {
     do {
       try {
         const results = await runPaymentRecoveryBatch();
-        console.log(
-          JSON.stringify({
-            time: new Date().toISOString(),
-            processed: results.length,
-            resolved: results.filter((result) => result.ok).length,
-          }),
-        );
+        log.info("batch completed", {
+          processed: results.length,
+          resolved: results.filter((result) => result.ok).length,
+        });
       } catch (error) {
-        console.error(
-          "Payment recovery batch failed",
-          error instanceof Error ? error.name : "UnknownError",
-        );
+        log.error("batch failed", { error });
         if (!process.argv.includes("--watch")) throw error;
       }
       if (!process.argv.includes("--watch")) break;
@@ -33,6 +31,7 @@ async function main() {
     await db.$disconnect();
   }
 }
-main().catch(() => {
+main().catch((error) => {
+  log.error("worker exited with failure", { error });
   process.exitCode = 1;
 });

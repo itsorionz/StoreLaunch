@@ -5,6 +5,9 @@ import { AccountStatusTargets, EntityStatuses, Roles } from "./enums.mjs";
 import { recordId } from "./form-validation";
 import { ACTIVE_ORDER_STATUSES } from "./order-status";
 import { db } from "./db";
+import { logger } from "./logger";
+
+const log = logger.child({ scope: "account-status" });
 
 export const accountStatusSchema = z.object({
   id: recordId,
@@ -94,12 +97,12 @@ export async function setAccountStatus(
       return { ok: true };
     });
   } catch (error) {
+    const expected = error instanceof Error && error.message.startsWith("Complete or reassign");
+    if (expected) log.warn("setAccountStatus rejected", { error, target, id, active });
+    else log.error("setAccountStatus failed", { error, target, id, active });
     return {
       ok: false,
-      error:
-        error instanceof Error && error.message.startsWith("Complete or reassign")
-          ? error.message
-          : "Could not update status. Please try again.",
+      error: expected ? error.message : "Could not update status. Please try again.",
     };
   }
 }

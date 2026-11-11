@@ -22,6 +22,72 @@ import { LOGIN_ROLE_COOKIE, abandonLoginProof } from "../lib/login";
 import { createPhoneOtp } from "../lib/otp";
 import { verifyPhoneOtp } from "../lib/otp";
 import { createReferredCustomer } from "../lib/referrals";
+import { logger } from "../lib/logger";
+
+const log = logger.child({ scope: "action:auth" });
+
+/** next/navigation's redirect() throws an error carrying this digest prefix. */
+function isRedirectError(error: unknown): boolean {
+  if (!error || typeof error !== "object" || !("digest" in error)) return false;
+  return String((error as { digest?: unknown }).digest).startsWith("NEXT_REDIRECT");
+}
+
+// Simple in-memory rate limiter for this session (reset on server restart)
+// Key format: "rate-limit:AUTHENTICATION:phone-or-ip"
+const loginAttempts = new Map<string, { count: number; resetAt: number }>();
+const otpAttempts = new Map<string, { count: number; resetAt: number }>();
+
+const RATE_LIMIT_WINDOW_MS = 15 * 60_000; // 15 minutes
+const MAX_LOGIN_ATTEMPTS = 5;
+const MAX_OTP_REQUESTS = 3;
+const MAX_OTP_VERIFY_ATTEMPTS = 5;
+
+function isRateLimited(
+  key: string,
+  map: Map<string, { count: number; resetAt: number }>,
+  maxAttempts: number,
+): { limited: boolean; waitMs: number } | null {
+  const entry = map.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.resetAt) {
+    map.delete(key);
+    return null;
+  }
+  if (entry.count >= maxAttempts) {
+    const waitMs = entry.resetAt - Date.now();
+    return { limited: true, waitMs };
+  }
+  return null;
+}
+
+function incrementRateLimit(
+  key: string,
+  map: Map<string, { count: number; resetAt: number }>,
+  windowMs: number,
+  maxAttempts: number,
+): { newCount: number; resetAt: number; limited: boolean; waitMs: number } {
+  const now = Date.now();
+  const entry = map.get(key);
+  if (entry && now < entry.resetAt) {
+    const newCount = entry.count + 1;
+    const resetAt = entry.resetAt;
+    if (newCount >= maxAttempts) {
+      return { newCount, resetAt, limited: true, waitMs: resetAt - now };
+    }
+    map.set(key, { count: newCount, resetAt });
+    return { newCount, resetAt, limited: false, waitMs: 0 };
+  } else if (entry && now >= entry.resetAt) {
+    const newCount = 1;
+    const resetAt = now + windowMs;
+    map.set(key, { count: newCount, resetAt });
+    return { newCount, resetAt, limited: false, waitMs: 0 };
+  } else {
+    const newCount = 1;
+    const resetAt = now + windowMs;
+    map.set(key, { count: newCount, resetAt });
+    return { newCount, resetAt, limited: false, waitMs: 0 };
+  }
+}
 import {
   createPhoneResetTicket,
   completePasswordReset,
@@ -37,6 +103,9 @@ export type AuthFormState = {
   phone?: string;
   ticket?: string;
   roles?: Role[];
+  ok?: boolean;
+  message?: string;
+  url?: string;
 } | null;
 
 const loginSchema = z.object({
@@ -49,7 +118,7 @@ type LoginRole = Role;
 
 function landingFor(role: LoginRole): string {
   if (role === Roles.Rider) return "/rider";
-  if (role === Roles.Admin) return "/admin";
+  if (role === Roles.Admin || role === Roles.SuperAdmin) return "/admin";
   if (role === Roles.Manager) return "/hrm";
   if (role === Roles.Support) return "/support";
   return "/";
@@ -65,8 +134,11 @@ function loginDestination(role: LoginRole, callbackUrl?: string): string {
   if (
     inArea("/rider") ||
     inArea("/support") ||
-    (inArea("/admin") && role !== Roles.Admin) ||
-    (inArea("/hrm") && role !== Roles.Admin && role !== Roles.Manager)
+    (inArea("/admin") && role !== Roles.Admin && role !== Roles.SuperAdmin) ||
+    (inArea("/hrm") &&
+      role !== Roles.Admin &&
+      role !== Roles.SuperAdmin &&
+      role !== Roles.Manager)
   )
     return landingFor(role);
   return callbackUrl;
@@ -77,19 +149,23 @@ async function finishVerifiedLogin(
   role: LoginRole,
   callbackUrl?: string,
 ): Promise<AuthFormState> {
+  const url = loginDestination(role, callbackUrl);
   try {
-    await signIn("credentials", {
-      loginTicket: ticket,
-      role,
-      redirectTo: loginDestination(role, callbackUrl),
-    });
+    // signIn without redirectTo returns normally so the action result (and
+    // therefore ActionResultToast) reaches the client; navigation happens
+    // client-side from auth-forms.tsx via router.push(state.url).
+    await signIn("credentials", { loginTicket: ticket, role });
   } catch (error) {
-    if (error instanceof AuthError)
+    if (error instanceof AuthError) {
+      log.warn("finishVerifiedLogin rejected", { role, code: error.name });
       return { error: "Your login expired or this role is no longer available. Sign in again" };
-    (await cookies()).set(LOGIN_ROLE_COOKIE, "", { path: "/login", maxAge: 0 });
-    throw error;
+    }
+    if (!isRedirectError(error)) {
+      log.error("finishVerifiedLogin failed", { error, role });
+      return null;
+    }
   }
-  return null;
+  return { ok: true, message: "Welcome back!", url };
 }
 
 async function chooseOrSignIn(proof: LoginProof, callbackUrl?: string): Promise<AuthFormState> {
@@ -112,8 +188,35 @@ export async function loginAction(
 ): Promise<AuthFormState> {
   const parsed = loginSchema.safeParse(Object.fromEntries(formData.entries()));
   if (!parsed.success) return { ...validationFailure(parsed.error) };
+  const email = parsed.data.email.toLowerCase().trim();
+  // Rate limiting by email to prevent brute-force
+  const loginKey = `rate-limit:AUTHENTICATION:${email}`;
+  const loginLimit = isRateLimited(loginKey, loginAttempts, MAX_LOGIN_ATTEMPTS);
+  if (loginLimit?.limited) {
+    return {
+      error: `Too many login attempts. Please try again in ${Math.ceil(loginLimit.waitMs / 1000)} seconds.`,
+      wait: Math.ceil(loginLimit.waitMs / 1000),
+    };
+  }
   const proof = await prepareEmailLogin(parsed.data.email, parsed.data.password);
-  if (!proof) return { error: "Invalid email or password" };
+  if (!proof) {
+    // Increment rate limit even on failed auth (but only after first check)
+    const { newCount, resetAt } = incrementRateLimit(
+      loginKey,
+      loginAttempts,
+      RATE_LIMIT_WINDOW_MS,
+      MAX_LOGIN_ATTEMPTS,
+    );
+    if (newCount >= MAX_LOGIN_ATTEMPTS) {
+      return {
+        error: `Account locked due to too many failed attempts. Try again after ${Math.ceil(resetAt / 1000)} seconds.`,
+        wait: Math.ceil(resetAt / 1000),
+      };
+    }
+    return { error: "Invalid email or password" };
+  }
+  // Reset rate limit on successful login
+  mapDelete(loginKey, loginAttempts);
   return chooseOrSignIn(proof, parsed.data.callbackUrl);
 }
 
@@ -127,6 +230,7 @@ export async function selectLoginRoleAction(
     typeof ticket !== "string" ||
     (role !== Roles.Customer &&
       role !== Roles.Admin &&
+      role !== Roles.SuperAdmin &&
       role !== Roles.Rider &&
       role !== Roles.Support &&
       role !== Roles.Warehouse &&
@@ -175,12 +279,17 @@ export async function registerAction(
       referralCode: referral.data,
     });
   } catch (error) {
-    if (error instanceof Error && error.message === "INVALID_REFERRAL")
+    if (error instanceof Error && error.message === "INVALID_REFERRAL") {
+      log.warn("registerAction rejected", { code: "INVALID_REFERRAL" });
       return {
         fieldErrors: { referralCode: ["This referral code is invalid or the program is paused"] },
       };
-    if (error && typeof error === "object" && "code" in error && error.code === "P2002")
+    }
+    if (error && typeof error === "object" && "code" in error && error.code === "P2002") {
+      log.warn("registerAction rejected", { code: "P2002" });
       return { fieldErrors: { email: ["An account with this email already exists"] } };
+    }
+    log.error("registerAction failed", { error });
     throw error;
   }
   const proof = await prepareEmailLogin(email, parsed.data.password);
@@ -201,6 +310,15 @@ export async function requestPhoneOtp(
   const phone = parsed.data.phone;
   if (phone.length < 6) return { error: "Enter a valid phone number" };
 
+  // Rate limiting by phone number for OTP requests
+  const otpKey = `rate-limit:OTP:${phone}`;
+  const otpLimit = isRateLimited(otpKey, otpAttempts, MAX_OTP_REQUESTS);
+  if (otpLimit?.limited) {
+    return {
+      error: `Too many OTP requests. Please try again in ${Math.ceil(otpLimit.waitMs / 1000)} seconds.`,
+      wait: Math.ceil(otpLimit.waitMs / 1000),
+    };
+  }
   const res = await createPhoneOtp(phone);
   if (!res.ok)
     return {
@@ -208,6 +326,21 @@ export async function requestPhoneOtp(
       errorCode: res.code,
       wait: res.wait,
     };
+  // Increment OTP request rate limit
+  const { newCount, resetAt } = incrementRateLimit(
+    otpKey,
+    otpAttempts,
+    RATE_LIMIT_WINDOW_MS,
+    MAX_OTP_REQUESTS,
+  );
+  if (newCount >= MAX_OTP_REQUESTS) {
+    return {
+      sent: true,
+      phone: res.phone,
+      error: `Maximum OTP requests reached for this number. Try again after ${Math.ceil(resetAt / 1000)} seconds.`,
+      wait: Math.ceil(resetAt / 1000),
+    };
+  }
   return { sent: true, phone: res.phone };
 }
 
@@ -227,8 +360,36 @@ export async function verifyPhoneOtpAction(
   const parsed = otpVerifySchema.safeParse(Object.fromEntries(formData.entries()));
   if (!parsed.success) return { ...validationFailure(parsed.error) };
 
+  const phone = parsed.data.phone;
+  // Rate limiting by phone number for OTP verification
+  const otpVerifyKey = `rate-limit:OTP_VERIFY:${phone}`;
+  const otpVerifyLimit = isRateLimited(otpVerifyKey, otpAttempts, MAX_OTP_VERIFY_ATTEMPTS);
+  if (otpVerifyLimit?.limited) {
+    return {
+      error: `Too many OTP verification attempts. Please try again in ${Math.ceil(otpVerifyLimit.waitMs / 1000)} seconds.`,
+      wait: Math.ceil(otpVerifyLimit.waitMs / 1000),
+    };
+  }
+
   const proof = await preparePhoneLogin(parsed.data.phone, parsed.data.code);
-  if (!proof) return { errorCode: "INVALID_OTP" };
+  if (!proof) {
+    // Increment rate limit on failed verification
+    const { newCount, resetAt } = incrementRateLimit(
+      otpVerifyKey,
+      otpAttempts,
+      RATE_LIMIT_WINDOW_MS,
+      MAX_OTP_VERIFY_ATTEMPTS,
+    );
+    if (newCount >= MAX_OTP_VERIFY_ATTEMPTS) {
+      return {
+        error: `Account locked due to too many failed OTP attempts. Try again after ${Math.ceil(resetAt / 1000)} seconds.`,
+        wait: Math.ceil(resetAt / 1000),
+      };
+    }
+    return { errorCode: "INVALID_OTP" };
+  }
+  // Reset rate limit on successful OTP verification
+  mapDelete(otpVerifyKey, otpAttempts);
   return chooseOrSignIn(proof, parsed.data.callbackUrl);
 }
 
@@ -308,4 +469,8 @@ export async function completePasswordResetAction(
   if (!(await completePasswordReset(parsed.data.token, parsed.data.password)))
     return { error: "This reset link has expired or was already used. Request a new one." };
   return { sent: true };
+}
+
+function mapDelete(key: string, map: Map<string, { count: number; resetAt: number }>) {
+  map.delete(key);
 }

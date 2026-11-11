@@ -8,7 +8,7 @@ import { connection } from "next/server";
 import { getStoreSettings } from "@backend/lib/settings";
 import { getCategoryTree } from "@backend/lib/catalog";
 import { getCurrentUser } from "@backend/lib/session";
-import { db } from "@backend/lib/db";
+import { getCustomerOrderCount } from "@backend/lib/order-again";
 import { getWalletBalance } from "@backend/lib/wallet";
 import { formatPrice } from "@backend/lib/money";
 import { getInboxUnreadCount } from "@backend/lib/inbox";
@@ -110,16 +110,18 @@ export async function StoreHeader() {
 
           {/* Right: icon buttons — icons at lg, labels at xl (Arogga-style) */}
           <div className="order-2 flex max-w-full items-center self-stretch gap-1 md:order-3">
-            <Suspense fallback={<HeaderAccountSummary dict={dict} />}>
-              <HeaderAccountActions dict={dict} currencySymbol={settings.currencySymbol} />
-            </Suspense>
+            <div className="hidden items-center gap-1 md:flex">
+              <Suspense fallback={<HeaderAccountSummary dict={dict} />}>
+                <HeaderAccountActions dict={dict} currencySymbol={settings.currencySymbol} />
+              </Suspense>
+            </div>
 
             <Suspense fallback={<CartTrigger label={dict.header.cart} horizontal href="/cart" />}>
               <CartWithBadge label={dict.header.cart} />
             </Suspense>
 
             <Suspense fallback={null}>
-              <AdminLink label={dict.header.admin} />
+              <AdminLink />
             </Suspense>
 
             <span className="mx-1 hidden h-8 w-px bg-border sm:block" aria-hidden />
@@ -258,7 +260,7 @@ function HeaderAccountSummary({
       data-header-account={signedIn ? "signed-in" : "guest"}
     >
       <HeaderSummaryLink
-        href={signedIn ? "/account" : "/login"}
+        href={signedIn ? "/account" : "/login?from=header"}
         label={dict.header.account}
         value={signedIn ? balance : dict.header.login}
         icon={<UserIcon />}
@@ -316,7 +318,7 @@ async function HeaderAccountActions({
   if (!user) return <HeaderAccountSummary dict={dict} />;
   const [balance, orders, inbox] = await Promise.all([
     getWalletBalance(user.id),
-    db.order.count({ where: { userId: user.id } }),
+    getCustomerOrderCount(user.id),
     getInboxUnreadCount(user.id),
   ]);
   return (
@@ -330,9 +332,20 @@ async function HeaderAccountActions({
   );
 }
 
-async function AdminLink({ label }: { label: string }) {
+async function AdminLink() {
   const user = await getCurrentUser();
-  if (!user || user.role !== Roles.Admin) return null;
+  if (!user || user.role === Roles.Customer) return null;
+  const dict = await getDict();
+  const roleLabels: Record<string, string> = {
+    [Roles.Admin]: dict.header.admin,
+    [Roles.SuperAdmin]: "SuperAdmin",
+    [Roles.Sales]: "Sales",
+    [Roles.Warehouse]: "Warehouse",
+    [Roles.Rider]: "Rider",
+    [Roles.Support]: "Support",
+    [Roles.Manager]: "Manager",
+  };
+  const label = roleLabels[user.role] || user.role;
   return <HeaderIcon label={label} icon={<ShieldIcon />} href="/admin" />;
 }
 

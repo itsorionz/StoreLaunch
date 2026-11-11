@@ -1,19 +1,15 @@
-import { OrderStatuses, PaymentMethods } from "@backend/lib/enums.mjs";
+import { PaymentMethods } from "@backend/lib/enums.mjs";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { db } from "@backend/lib/db";
 import { getRider } from "@backend/lib/session";
+import { getRiderActiveRoute } from "@backend/lib/rider-queries";
 import { DeliveryMap } from "@frontend/components/rider/delivery-map";
 import { formatPrice, orderCurrencyLabel } from "@backend/lib/money";
 
 export default async function RiderRoutePage() {
   const ctx = await getRider();
   if (!ctx) redirect("/login?callbackUrl=/rider/route");
-  const orders = await db.order.findMany({
-    where: { riderId: ctx.rider.id, status: OrderStatuses.Shipped },
-    orderBy: [{ city: "asc" }, { shippedAt: "asc" }],
-    include: { deliveryAttempts: { orderBy: { createdAt: "desc" }, take: 1 } },
-  });
+  const { orders } = await getRiderActiveRoute(ctx.rider.id);
   return (
     <div className="space-y-5">
       <div>

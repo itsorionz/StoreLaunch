@@ -1,15 +1,9 @@
-import { db } from "@backend/lib/db";
+import { getPickListDetail } from "@backend/lib/admin-orders-queries";
 import { MarkPickedButton, PickLineForm } from "@frontend/components/warehouse/pick-controls";
 
 export default async function PickDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const pickList = await db.pickList.findUnique({
-    where: { id },
-    include: {
-      order: { select: { id: true, number: true } },
-      lines: { include: { orderItem: { include: { product: true } } } },
-    },
-  });
+  const pickList = await getPickListDetail(id);
 
   if (!pickList) {
     return (

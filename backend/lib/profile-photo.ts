@@ -1,4 +1,16 @@
 import sharp from "sharp";
+import "server-only";
+import { db } from "./db";
+
+// Read side for the profile-photo route handler: returns the stored bytes for
+// the signed-in user, or null when no photo is set.
+export async function getProfilePhoto(userId: string): Promise<Uint8Array | null> {
+  const account = await db.user.findUnique({
+    where: { id: userId },
+    select: { profilePhoto: true },
+  });
+  return account?.profilePhoto ?? null;
+}
 
 export async function prepareProfilePhoto(file: File): Promise<Buffer> {
   if (file.size > 2 * 1024 * 1024) throw new Error("Choose a photo smaller than 2 MB");

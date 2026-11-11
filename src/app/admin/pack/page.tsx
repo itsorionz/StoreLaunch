@@ -1,14 +1,9 @@
-import { db } from "@backend/lib/db";
+import { unstable_noStore } from "next/cache";
+import { listPackQueuePickLists } from "@backend/lib/admin-orders-queries";
 
 export default async function PackQueuePage() {
-  const pickLists = await db.pickList.findMany({
-    where: { status: "Picked" },
-    include: {
-      order: { select: { id: true, number: true } },
-      lines: { include: { orderItem: true } },
-    },
-    orderBy: { pickedAt: "asc" },
-  });
+  unstable_noStore();
+  const pickLists = await listPackQueuePickLists();
 
   return (
     <div className="min-h-screen bg-background">

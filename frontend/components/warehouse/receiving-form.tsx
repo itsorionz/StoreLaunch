@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createReceipt, type AdminActionResult } from "@backend/actions/admin";
+import { ActionResultToast } from "@frontend/components/ui/validated-form";
 
 type PoLine = { productId: string; name: string; sku: string | null; qtyOrdered: number };
 type OpenPo = { id: string; number: string; supplierName: string; lines: PoLine[] };
@@ -52,6 +53,7 @@ export function ReceivingForm({
 
   return (
     <form action={formAction} className="space-y-4 rounded-xl border border-border bg-surface p-4">
+      <ActionResultToast result={state} successMessage="Receipt recorded." />
       <label className="block">
         <span className="text-xs font-semibold text-muted">Purchase order</span>
         <select

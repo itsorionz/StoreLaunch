@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
 export function Modal({
@@ -16,6 +16,11 @@ export function Modal({
   children: React.ReactNode;
   wide?: boolean;
 }) {
+  const [mounted, setMounted] = useState(false);
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => setMounted(true), []);
+
   useEffect(() => {
     if (!open) return;
     function onKey(e: KeyboardEvent) {
@@ -29,8 +34,7 @@ export function Modal({
     };
   }, [open, onClose]);
 
-  if (!open) return null;
-  if (typeof document === "undefined") return null;
+  if (!open || !mounted) return null;
 
   return createPortal(
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">

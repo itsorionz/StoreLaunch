@@ -37,7 +37,9 @@ export function ShipmentSyncButton({
             formData.set("shipmentId", shipmentId);
             const result = await syncShipmentStatus(null, formData);
             if (!result.ok) {
-              setError(result.error ?? "Sync failed");
+              const message = result.error ?? "Sync failed";
+              setError(message);
+              toast(message, "error");
               return;
             }
             toast("Shipment status synced with the carrier");
@@ -95,7 +97,9 @@ export function CreateShipmentForm({
           startTransition(async () => {
             const result = await createShipment(null, formData);
             if (!result.ok) {
-              setError(result.error ?? "Could not create the shipment");
+              const message = result.error ?? "Could not create the shipment";
+              setError(message);
+              toast(message, "error");
               return;
             }
             toast("Shipment created");

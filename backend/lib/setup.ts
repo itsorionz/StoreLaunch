@@ -11,7 +11,10 @@ import { z } from "zod";
 import { db } from "./db";
 import { verifyLicenseKey, hashLicenseKey } from "./license";
 import { seedCatalog } from "./seed-data";
-import { Prisma } from "@backend/generated/prisma/client";
+import { Prisma, type Role } from "@backend/generated/prisma/client";
+import { logger } from "./logger";
+
+const log = logger.child({ scope: "setup" });
 
 export const setupInputSchema = z.object({
   licenseKey: z
@@ -32,11 +35,18 @@ export const setupInputSchema = z.object({
   contactEmail: emailAddress.optional().or(z.literal("")),
   contactPhone: optionalContactPhone,
   deliveryEstimate: shortText.optional(),
+  roles: z.array(z.string()).optional(),
 });
 
 export type SetupInput = z.infer<typeof setupInputSchema>;
 
 export type SetupOutcome = { ok: true } | { ok: false; error: string };
+
+// Minimal read used by the edge proxy to decide whether to gate on /setup.
+export async function isSetupCompleted(): Promise<boolean> {
+  const settings = await db.storeSettings.findFirst({ select: { setupCompletedAt: true } });
+  return Boolean(settings?.setupCompletedAt);
+}
 
 export async function performSetup(input: SetupInput): Promise<SetupOutcome> {
   const license = await verifyLicenseKey(input.licenseKey);
@@ -93,7 +103,7 @@ export async function performSetup(input: SetupInput): Promise<SetupOutcome> {
             email,
             name: input.adminName,
             passwordHash,
-            roles: [Roles.Customer, Roles.Admin],
+            roles: input.roles ? (input.roles as Role[]) : [Roles.Customer, Roles.Admin, Roles.SuperAdmin],
           },
         });
         const storeData = {
@@ -115,11 +125,13 @@ export async function performSetup(input: SetupInput): Promise<SetupOutcome> {
     );
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      log.warn("store setup rejected", { code: "P2002" });
       return {
         ok: false,
         error: "Setup details were already used or this store was set up. Refresh and try again.",
       };
     }
+    log.error("store setup failed", { error });
     throw error;
   }
 }

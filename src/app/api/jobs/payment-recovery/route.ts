@@ -2,9 +2,10 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { runPaymentRecoveryBatch } from "@backend/lib/payment-recovery";
 import { revalidatePath, revalidateTag } from "next/cache";
+import { withRoute } from "@backend/lib/route-logger";
 
 export const maxDuration = 300;
-export async function POST(request: NextRequest) {
+export const POST = withRoute("jobs.payment-recovery", async (request: NextRequest) => {
   const secret = process.env.PAYMENT_RECOVERY_SECRET;
   if (!secret || secret.length < 32)
     return NextResponse.json({ error: "Recovery job is not configured" }, { status: 503 });
@@ -22,4 +23,4 @@ export async function POST(request: NextRequest) {
     { processed: results.length, results },
     { headers: { "Cache-Control": "no-store" } },
   );
-}
+});

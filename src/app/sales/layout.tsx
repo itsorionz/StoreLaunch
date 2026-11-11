@@ -4,6 +4,7 @@ import Link from "next/link";
 import { requireSalesPage } from "@backend/lib/session";
 import { logoutAction } from "@backend/actions/auth";
 import { SalesNav, SalesBottomNav } from "@frontend/components/sales/sales-nav";
+import { RouteLoading } from "@frontend/components/ui/route-loading";
 
 export const metadata = {
   title: "Sales",
@@ -44,8 +45,26 @@ async function SalesShell({ children }: { children: React.ReactNode }) {
             </div>
             <ThemeToggle className="text-muted" />
           </div>
-          <form action={logoutAction} className="mt-2 px-2">
-            <button type="submit" className="text-sm font-semibold text-accent hover:underline">
+          <form action={logoutAction} className="mt-1 px-2">
+            <button
+              type="submit"
+              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-accent transition-colors hover:bg-accent/5"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" x2="9" y1="12" y2="12" />
+              </svg>
               Logout
             </button>
           </form>
@@ -92,7 +111,7 @@ async function SalesShell({ children }: { children: React.ReactNode }) {
 
 export default function SalesLayout({ children }: { children: React.ReactNode }) {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-background" />}>
+    <Suspense fallback={<RouteLoading className="min-h-screen bg-background" />}>
       <SalesShell>{children}</SalesShell>
     </Suspense>
   );

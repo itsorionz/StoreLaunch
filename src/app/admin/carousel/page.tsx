@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { db } from "@backend/lib/db";
+import { listActiveCampaigns, listCarouselSlides } from "@backend/lib/admin-catalog-queries";
 import { DeleteSlideButton } from "@frontend/components/admin/delete-buttons";
 import { AddSlideModal, EditSlideModal } from "@frontend/components/admin/carousel-form";
 import { PageHeader } from "@frontend/components/admin/admin-ui";
@@ -7,15 +7,10 @@ import { PageHeader } from "@frontend/components/admin/admin-ui";
 export const metadata = { title: "Carousel — Admin" };
 
 export default async function AdminCarouselPage() {
-  const [slides, campaigns] = await Promise.all([
-    db.carouselSlide.findMany({ orderBy: [{ order: "asc" }, { createdAt: "desc" }] }),
-    db.campaign.findMany({
-      where: { active: true },
-      orderBy: { title: "asc" },
-      select: { id: true, title: true },
-    }),
-  ]);
+  const [slides, campaigns] = await Promise.all([listCarouselSlides(), listActiveCampaigns()]);
   const activeCount = slides.filter((slide) => slide.active).length;
+  // No slides => the homepage hero falls back to showing active campaigns.
+  const activeCampaigns = slides.length === 0 ? campaigns.length : 0;
 
   return (
     <div className="animate-fade-up">
@@ -28,8 +23,21 @@ export default async function AdminCarouselPage() {
         <ul className="divide-y divide-border">
           {slides.length === 0 && (
             <li className="px-5 py-10 text-center text-sm text-muted">
-              No slides yet. Add an image to show it in the homepage carousel. Images are resized
-              automatically to the slider size.
+              {activeCampaigns > 0 ? (
+                <>
+                  No slides yet. The homepage hero is currently showing{" "}
+                  <span className="font-semibold text-foreground">
+                    {activeCampaigns} active campaign{activeCampaigns === 1 ? "" : "s"}
+                  </span>{" "}
+                  instead (fallback). Add an image to take over the carousel — images are resized
+                  automatically to the slider size.
+                </>
+              ) : (
+                <>
+                  No slides yet. Add an image to show it in the homepage carousel. Images are
+                  resized automatically to the slider size.
+                </>
+              )}
             </li>
           )}
           {slides.map((slide) => (

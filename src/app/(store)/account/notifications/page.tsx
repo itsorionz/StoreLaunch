@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@backend/lib/session";
-import { db } from "@backend/lib/db";
+import { listAccountStockNotifications } from "@backend/lib/account-queries";
 import { getDict } from "@frontend/i18n/dict";
 import { RemoveNotificationButton } from "@frontend/components/products/remove-notification-button";
 
@@ -12,26 +12,7 @@ async function NotificationsContent() {
   const user = await getCurrentUser();
   if (!user) redirect("/login?callbackUrl=/account/notifications");
 
-  const [subs, dict] = await Promise.all([
-    db.stockNotification.findMany({
-      where: { userId: user.id },
-      orderBy: { createdAt: "desc" },
-      include: {
-        product: {
-          select: {
-            id: true,
-            name: true,
-            slug: true,
-            priceCents: true,
-            salePriceCents: true,
-            stock: true,
-            images: true,
-          },
-        },
-      },
-    }),
-    getDict(),
-  ]);
+  const [subs, dict] = await Promise.all([listAccountStockNotifications(user.id), getDict()]);
 
   return (
     <div className="space-y-4">

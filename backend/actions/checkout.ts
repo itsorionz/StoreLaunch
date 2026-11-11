@@ -22,6 +22,9 @@ import { createReservedOrder } from "../lib/order-placement";
 import { updateTag } from "next/cache";
 import { db } from "../lib/db";
 import { revalidateStore } from "../lib/revalidate";
+import { logger } from "../lib/logger";
+
+const log = logger.child({ scope: "action:checkout" });
 
 const checkoutSchema = z.object({
   name: personName,
@@ -116,6 +119,27 @@ export async function placeOrder(_prev: CheckoutState, formData: FormData): Prom
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "";
+    // Expected business outcomes: the customer gets a specific message, so a
+    // warn line is enough to reconstruct what happened. Anything else is a
+    // real failure and keeps its stack.
+    const expected = [
+      "OUT_OF_STOCK",
+      "CART_CHANGED",
+      "INSUFFICIENT_WALLET",
+      "CURRENCY_CHANGED",
+      "HUB_AT_CAPACITY",
+      "INVALID_ORDER_AMOUNT",
+      "INVALID_WALLET_AMOUNT",
+      "ORDER_AMOUNT_LIMIT",
+    ].includes(message);
+    if (expected) log.warn("placeOrder rejected", { code: message, userId: user.id });
+    else
+      log.error("placeOrder failed", {
+        error,
+        userId: user.id,
+        subtotalCents,
+        paymentMethod: d.paymentMethod,
+      });
     if (["OUT_OF_STOCK", "CART_CHANGED"].includes(message))
       return { error: "Your cart or product availability changed. Please review your cart" };
     if (message === "INSUFFICIENT_WALLET")

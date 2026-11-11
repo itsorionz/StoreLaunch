@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getRider } from "@backend/lib/session";
-import { db } from "@backend/lib/db";
+import { getRiderOrderHistory } from "@backend/lib/rider-queries";
 import { formatPrice, orderCurrencyLabel } from "@backend/lib/money";
 
 const statusStyles: Record<string, string> = {
@@ -17,26 +17,7 @@ const statusStyles: Record<string, string> = {
 async function RiderHistory() {
   const ctx = await getRider();
   if (!ctx) redirect("/login?callbackUrl=/rider");
-
-  const orders = await db.order.findMany({
-    where: {
-      riderId: ctx.rider.id,
-      status: { in: [OrderStatuses.Delivered, OrderStatuses.Cancelled] },
-    },
-    orderBy: { createdAt: "desc" },
-    select: {
-      id: true,
-      number: true,
-      status: true,
-      recipientName: true,
-      line1: true,
-      city: true,
-      totalCents: true,
-      currencyCode: true,
-      currencySymbol: true,
-      deliveredAt: true,
-    },
-  });
+  const { orders } = await getRiderOrderHistory(ctx.rider.id);
 
   return (
     <div className="space-y-4">

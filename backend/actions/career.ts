@@ -19,6 +19,9 @@ import {
 import { revalidatePath } from "next/cache";
 import { logEmail } from "@backend/lib/mail";
 import { renderMessageTemplate } from "@backend/lib/message-templates";
+import { logger } from "@backend/lib/logger";
+
+const log = logger.child({ scope: "action:career" });
 
 export type CareerActionResult = {
   ok: boolean;
@@ -261,11 +264,14 @@ export async function submitCareerApplication(
       });
     }
   } catch (error) {
-    if (error && typeof error === "object" && "code" in error && error.code === "P2002")
+    if (error && typeof error === "object" && "code" in error && error.code === "P2002") {
+      log.warn("submitCareerApplication rejected", { code: "P2002", jobId: job.id, email });
       return {
         ok: false,
         ...fieldFailure("email", "An application with this email is already on file for this role"),
       };
+    }
+    log.error("submitCareerApplication failed", { error, jobId: job.id });
     throw error;
   }
 

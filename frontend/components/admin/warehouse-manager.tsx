@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createWarehouse, updateWarehouse, toggleWarehouse } from "@backend/actions/admin";
+import { useToast } from "@frontend/components/ui/toast";
 
 type WarehouseRow = {
   id: string;
@@ -14,6 +15,7 @@ type WarehouseRow = {
 };
 
 export function WarehouseManager({ warehouses }: { warehouses: WarehouseRow[] }) {
+  const toast = useToast();
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [editData, setEditData] = useState<{
@@ -25,17 +27,23 @@ export function WarehouseManager({ warehouses }: { warehouses: WarehouseRow[] })
   const handleSave = async (formData: FormData) => {
     const result = await createWarehouse(null, formData);
     if (result.ok) {
+      toast("Warehouse created.");
       setShowForm(false);
-      window.location.reload();
+      setTimeout(() => window.location.reload(), 900);
+    } else {
+      toast(result.error ?? "Could not create warehouse.", "error");
     }
   };
 
   const handleUpdate = async (formData: FormData) => {
     const result = await updateWarehouse(null, formData);
     if (result.ok) {
+      toast("Warehouse updated.");
       setEditId(null);
       setEditData(null);
-      window.location.reload();
+      setTimeout(() => window.location.reload(), 900);
+    } else {
+      toast(result.error ?? "Could not update warehouse.", "error");
     }
   };
 
@@ -45,7 +53,10 @@ export function WarehouseManager({ warehouses }: { warehouses: WarehouseRow[] })
     formData.append("active", active.toString());
     const result = await toggleWarehouse(null, formData);
     if (result.ok) {
-      window.location.reload();
+      toast(active ? "Warehouse enabled." : "Warehouse disabled.");
+      setTimeout(() => window.location.reload(), 900);
+    } else {
+      toast(result.error ?? "Could not update warehouse status.", "error");
     }
   };
 

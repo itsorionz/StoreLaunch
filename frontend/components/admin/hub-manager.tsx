@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { saveDeliveryHub, toggleDeliveryHub } from "@backend/actions/delivery-hubs";
+import { useToast } from "@frontend/components/ui/toast";
 
 type HubRow = {
   id: string;
@@ -39,6 +40,7 @@ export function HubManager({
   hubs: HubRow[];
   warehouses: WarehouseOption[];
 }) {
+  const toast = useToast();
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -71,8 +73,14 @@ export function HubManager({
   const handleSubmit = async (formData: FormData) => {
     if (editId) formData.set("id", editId);
     const result = await saveDeliveryHub(null, formData);
-    if (result.ok) window.location.reload();
-    else setError(result.error ?? "Could not save the delivery hub");
+    if (result.ok) {
+      toast(editId ? "Delivery hub updated." : "Delivery hub created.");
+      setTimeout(() => window.location.reload(), 900);
+    } else {
+      const message = result.error ?? "Could not save the delivery hub";
+      setError(message);
+      toast(message, "error");
+    }
   };
 
   const handleToggle = async (id: string, active: boolean) => {
@@ -80,7 +88,14 @@ export function HubManager({
     formData.set("id", id);
     formData.set("active", String(active));
     const result = await toggleDeliveryHub(null, formData);
-    if (result.ok) window.location.reload();
+    if (result.ok) {
+      toast(active ? "Delivery hub enabled." : "Delivery hub disabled.");
+      setTimeout(() => window.location.reload(), 900);
+    } else {
+      const message = result.error ?? "Could not update the delivery hub";
+      setError(message);
+      toast(message, "error");
+    }
   };
 
   const editing = editId !== null;

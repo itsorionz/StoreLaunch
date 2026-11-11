@@ -3,7 +3,10 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@backend/lib/session";
-import { db } from "@backend/lib/db";
+import {
+  listAccountProductReviews,
+  listAccountReviewableOrders,
+} from "@backend/lib/account-queries";
 import { getDict } from "@frontend/i18n/dict";
 import { formatPrice } from "@backend/lib/money";
 import { ReviewForm } from "@frontend/components/account/review-form";
@@ -21,30 +24,8 @@ async function ReviewsContent() {
   if (!user) redirect("/login?callbackUrl=/account/reviews");
 
   const [orders, reviews, dict] = await Promise.all([
-    db.order.findMany({
-      where: { userId: user.id },
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        number: true,
-        status: true,
-        createdAt: true,
-        items: {
-          select: {
-            productId: true,
-            name: true,
-            slug: true,
-            priceCents: true,
-            quantity: true,
-            imageUrl: true,
-          },
-        },
-      },
-    }),
-    db.review.findMany({
-      where: { userId: user.id },
-      select: { productId: true, rating: true, body: true, status: true, createdAt: true },
-    }),
+    listAccountReviewableOrders(user.id),
+    listAccountProductReviews(user.id),
     getDict(),
   ]);
 

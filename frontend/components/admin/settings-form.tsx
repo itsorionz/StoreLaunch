@@ -46,6 +46,10 @@ export function SettingsForm({ settings }: { settings: SettingsValues }) {
   const [state, action, pending] = useActionState<SettingsState, FormData>(updateSettings, null);
   const [saveDockLeft, setSaveDockLeft] = useState(16);
   const [portalReady, setPortalReady] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     const alignSaveDock = () => {
@@ -406,6 +410,7 @@ export function SettingsForm({ settings }: { settings: SettingsValues }) {
         </section>
       </ValidatedForm>
       {portalReady &&
+        mounted &&
         createPortal(
           <div
             className="fixed bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-40"

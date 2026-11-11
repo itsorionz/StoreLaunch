@@ -16,6 +16,9 @@ import { assignDeliveryHub } from "./hub-routing";
 import { commissionCentsFor } from "./sales-commission";
 import { recordOrderEvent, type OrderActor } from "./order-events";
 import type { CurrentUser } from "./session";
+import { logger } from "./logger";
+
+const log = logger.child({ scope: "sales-orders" });
 
 export type SalesOrderLine = { productId: string; quantity: number };
 
@@ -270,10 +273,16 @@ export async function createSalesOrder(input: SalesOrderInput): Promise<SalesOrd
       return { ok: true, orderNumber, customerId: customer.id };
     });
   } catch (error) {
-    if (error instanceof SaleRejected) return { ok: false, error: error.message };
+    if (error instanceof SaleRejected) {
+      log.warn("createSalesOrder rejected", { code: "SALE_REJECTED", reason: error.message });
+      return { ok: false, error: error.message };
+    }
     const message = error instanceof Error ? error.message : "";
-    if (message === "OUT_OF_STOCK")
+    if (message === "OUT_OF_STOCK") {
+      log.warn("createSalesOrder rejected", { code: "OUT_OF_STOCK" });
       return { ok: false, error: "Some items went out of stock. Refresh and try again" };
+    }
+    log.error("createSalesOrder failed", { error, actorId: input.actor.id });
     return { ok: false, error: "Could not complete the sale. Please try again" };
   }
 }

@@ -1,7 +1,10 @@
-import { Roles } from "@backend/lib/enums.mjs";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { db } from "@backend/lib/db";
+import {
+  getOutstandingCodCollections,
+  getRecentCodSettlementLines,
+  getRemittedCodCollections,
+} from "@backend/lib/cod-collection-queries";
 import { getRider } from "@backend/lib/session";
 import { formatPrice } from "@backend/lib/money";
 
@@ -9,36 +12,9 @@ export default async function RiderCashPage() {
   const ctx = await getRider();
   if (!ctx) redirect("/login?callbackUrl=/rider/cash");
   const [outstanding, recent, legacyRecent] = await Promise.all([
-    db.codCollection.findMany({
-      where: { collectedById: ctx.user.id, collectedByRole: Roles.Rider, remittedAt: null },
-      orderBy: { collectedAt: "asc" },
-      include: {
-        order: { select: { number: true } },
-        settlementLines: { select: { appliedCents: true } },
-      },
-    }),
-    db.codSettlementLine.findMany({
-      where: {
-        codCollection: { is: { collectedById: ctx.user.id, collectedByRole: Roles.Rider } },
-      },
-      orderBy: { settlement: { receivedAt: "desc" } },
-      take: 30,
-      include: {
-        settlement: true,
-        codCollection: { select: { order: { select: { number: true } } } },
-      },
-    }),
-    db.codCollection.findMany({
-      where: {
-        collectedById: ctx.user.id,
-        collectedByRole: Roles.Rider,
-        remittedAt: { not: null },
-        settlementLines: { none: {} },
-      },
-      orderBy: { remittedAt: "desc" },
-      take: 30,
-      include: { order: { select: { number: true } } },
-    }),
+    getOutstandingCodCollections(ctx.user.id, ctx.user.role),
+    getRecentCodSettlementLines(ctx.user.id, ctx.user.role),
+    getRemittedCodCollections(ctx.user.id, ctx.user.role),
   ]);
   const totals = new Map<string, number>();
   for (const row of outstanding)

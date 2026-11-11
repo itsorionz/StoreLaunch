@@ -1,9 +1,8 @@
 import Link from "next/link";
 import { requireSalesPage } from "@backend/lib/session";
-import { db } from "@backend/lib/db";
 import { bdStartOfDay } from "@backend/lib/admin-dashboard-periods";
-import { OrderSources } from "@backend/lib/enums.mjs";
 import { getRepCommission } from "@backend/lib/sales-commission";
+import { getSalesTodayStats, listRecentSalesOrders } from "@backend/lib/sales-queries";
 
 export const metadata = { title: "Sales dashboard" };
 
@@ -12,30 +11,8 @@ export default async function SalesDashboardPage() {
   const start = bdStartOfDay();
 
   const [today, recent, commission] = await Promise.all([
-    db.order.aggregate({
-      where: {
-        source: OrderSources.SalesRep,
-        createdAt: { gte: start },
-        status: { not: "Cancelled" },
-      },
-      _count: { _all: true },
-      _sum: { totalCents: true },
-    }),
-    db.order.findMany({
-      where: { source: OrderSources.SalesRep },
-      orderBy: { createdAt: "desc" },
-      take: 10,
-      select: {
-        number: true,
-        status: true,
-        totalCents: true,
-        currencySymbol: true,
-        recipientName: true,
-        paymentMethod: true,
-        paidAt: true,
-        createdAt: true,
-      },
-    }),
+    getSalesTodayStats(start),
+    listRecentSalesOrders(),
     getRepCommission(user.id, start),
   ]);
 

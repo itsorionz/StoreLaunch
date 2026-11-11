@@ -1,5 +1,10 @@
 import Link from "next/link";
-import type { SupportTicketPriority, SupportTicketStatus } from "@backend/generated/prisma/client";
+import { SupportTicketPriorities, SupportTicketStatuses } from "@backend/lib/enums.mjs";
+
+// View-level types derived from the public enums, so UI code never touches the
+// generated ORM client. The Prisma model types are the same string unions.
+type SupportTicketStatus = (typeof SupportTicketStatuses)[keyof typeof SupportTicketStatuses];
+type SupportTicketPriority = (typeof SupportTicketPriorities)[keyof typeof SupportTicketPriorities];
 
 export function relativeTime(date: Date): string {
   const seconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));

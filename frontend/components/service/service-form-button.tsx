@@ -35,7 +35,7 @@ export function ServiceFormButton<T extends FormState>({
       action={formAction}
       errors={state?.fieldErrors}
       result={state}
-      successToast={false}
+      successMessage="Action completed."
       noValidate
       className="inline"
     >

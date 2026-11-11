@@ -13,6 +13,9 @@ import {
 import { recordOrderEvent, type OrderActor } from "./order-events";
 import { creditWalletBalance } from "./wallet-balance";
 import { applyWarehouseStockDelta } from "./stock-ledger";
+import { logger } from "./logger";
+
+const log = logger.child({ scope: "return-to-origin" });
 
 export type ReturnToOriginResult = { ok: boolean; number?: string; error?: string };
 
@@ -202,13 +205,16 @@ export async function completeReturnToOrigin(
       });
       return { ok: true, number: order.number };
     })
-    .catch((error: unknown) =>
-      error instanceof Error && error.message === "WALLET_BALANCE_LIMIT"
-        ? {
-            ok: false,
-            error:
-              "Return was not closed because refunding the wallet would exceed its supported balance. Contact finance",
-          }
-        : Promise.reject(error),
-    );
+    .catch((error: unknown) => {
+      if (error instanceof Error && error.message === "WALLET_BALANCE_LIMIT") {
+        log.warn("completeReturnToOrigin rejected", { code: "WALLET_BALANCE_LIMIT", orderId });
+        return {
+          ok: false,
+          error:
+            "Return was not closed because refunding the wallet would exceed its supported balance. Contact finance",
+        };
+      }
+      log.error("completeReturnToOrigin failed", { error, orderId, disposition });
+      return Promise.reject(error);
+    });
 }

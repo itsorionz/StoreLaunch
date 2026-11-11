@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { AttendanceStatuses } from "@backend/lib/enums.mjs";
 import { saveAttendance, markAllPresent, type HrmActionResult } from "@backend/actions/hrm";
 import { useToast } from "@frontend/components/ui/toast";
+import { ActionResultToast } from "@frontend/components/ui/validated-form";
 
 type Row = {
   employee: {
@@ -49,6 +50,10 @@ function AttendanceRow({ row, dateKey }: { row: Row; dateKey: string }) {
         </p>
       </td>
       <td className="px-4 py-3">
+        <ActionResultToast
+          result={state}
+          successMessage={row.record ? "Attendance updated." : "Attendance marked."}
+        />
         <form action={action} className="flex flex-wrap items-center gap-2">
           <input type="hidden" name="employeeId" value={row.employee.id} />
           <input type="hidden" name="date" value={dateKey} />

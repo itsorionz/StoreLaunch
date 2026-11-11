@@ -10,6 +10,17 @@ import {
   receiveTransfer,
   TRANSFER_ERROR_MESSAGES,
 } from "../lib/stock-transfers";
+import { logger, type LogContext } from "../lib/logger";
+
+const log = logger.child({ scope: "action:transfers" });
+
+/** Known transfer codes map to friendly messages; anything else is a real failure. */
+function logTransferFailure(action: string, error: unknown, context: LogContext): void {
+  const code = error instanceof Error ? error.message : "";
+  if (code && Object.hasOwn(TRANSFER_ERROR_MESSAGES, code))
+    log.warn(`${action} rejected`, { code, ...context });
+  else log.error(`${action} failed`, { error, ...context });
+}
 
 export type TransferActionResult = { ok: boolean; error?: string };
 
@@ -48,6 +59,12 @@ export async function requestStockTransfer(
       actor: { id: actor.id, name: actor.name },
     });
   } catch (error) {
+    logTransferFailure("requestStockTransfer", error, {
+      productId,
+      fromWarehouseId,
+      toWarehouseId,
+      qty,
+    });
     return { ok: false, error: messageFor(error) };
   }
   refresh();
@@ -66,6 +83,7 @@ export async function dispatchStockTransfer(
   try {
     await db.$transaction((tx) => dispatchTransfer(tx, id, { id: actor.id, name: actor.name }));
   } catch (error) {
+    logTransferFailure("dispatchStockTransfer", error, { transferId: id, actorId: actor.id });
     return { ok: false, error: messageFor(error) };
   }
   refresh();
@@ -84,6 +102,7 @@ export async function receiveStockTransfer(
   try {
     await db.$transaction((tx) => receiveTransfer(tx, id, { id: actor.id, name: actor.name }));
   } catch (error) {
+    logTransferFailure("receiveStockTransfer", error, { transferId: id, actorId: actor.id });
     return { ok: false, error: messageFor(error) };
   }
   refresh();
@@ -102,6 +121,7 @@ export async function cancelStockTransfer(
   try {
     await db.$transaction((tx) => cancelTransfer(tx, id, { id: actor.id, name: actor.name }));
   } catch (error) {
+    logTransferFailure("cancelStockTransfer", error, { transferId: id, actorId: actor.id });
     return { ok: false, error: messageFor(error) };
   }
   refresh();

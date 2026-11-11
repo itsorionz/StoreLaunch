@@ -7,7 +7,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@backend/lib/session";
-import { db } from "@backend/lib/db";
+import { listAccountOrders } from "@backend/lib/account-queries";
 import { formatPrice, orderCurrencyLabel } from "@backend/lib/money";
 import { ORDER_STATUS_LABELS } from "@backend/lib/order-status";
 import { OrderAdditionalInfo } from "@frontend/components/orders/order-additional-info";
@@ -21,11 +21,7 @@ async function OrdersContent({ searchParams }: { searchParams: Promise<{ q?: str
   const dict = await getDict();
   const parsed = appSearchSchema.safeParse(await searchParams);
   if (!parsed.success) return <p role="alert">{dict.appSearch.invalid}</p>;
-  const orders = await db.order.findMany({
-    where: { userId: user.id, ...orderTextWhere(parsed.data.q) },
-    orderBy: { createdAt: "desc" },
-    include: { items: { select: { quantity: true } } },
-  });
+  const orders = await listAccountOrders(user.id, orderTextWhere(parsed.data.q));
   if (!orders.length)
     return (
       <div className="rounded-2xl border border-border bg-card p-12 text-center">

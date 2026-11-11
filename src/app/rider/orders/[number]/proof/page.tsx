@@ -1,8 +1,8 @@
 import { OrderStatuses, PaymentMethods } from "@backend/lib/enums.mjs";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { db } from "@backend/lib/db";
 import { getRider } from "@backend/lib/session";
+import { getRiderOrderProof } from "@backend/lib/rider-queries";
 import { formatPrice, orderCurrencyLabel } from "@backend/lib/money";
 import { DeliveryProofForm } from "@frontend/components/rider/delivery-forms";
 
@@ -10,7 +10,7 @@ export default async function RiderProofPage({ params }: { params: Promise<{ num
   const ctx = await getRider();
   if (!ctx) redirect("/login?callbackUrl=/rider");
   const { number } = await params;
-  const order = await db.order.findFirst({ where: { number, riderId: ctx.rider.id } });
+  const { order } = await getRiderOrderProof(number, ctx.rider.id);
   if (!order) notFound();
   const due =
     order.paymentMethod === PaymentMethods.COD

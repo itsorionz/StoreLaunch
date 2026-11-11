@@ -1,14 +1,11 @@
-import { db } from "@backend/lib/db";
+import { connection } from "next/server";
+import { listPickQueuePickLists } from "@backend/lib/admin-orders-queries";
+import { unstable_noStore } from "next/cache";
 
 export default async function PickQueuePage() {
-  const pickLists = await db.pickList.findMany({
-    where: { status: "Picking" },
-    include: {
-      order: { select: { id: true, number: true } },
-      lines: { include: { orderItem: true } },
-    },
-    orderBy: { createdAt: "asc" },
-  });
+  unstable_noStore();
+  await connection();
+  const pickLists = await listPickQueuePickLists();
 
   return (
     <div className="min-h-screen bg-background">

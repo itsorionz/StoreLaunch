@@ -1,7 +1,9 @@
 import Link from "next/link";
-import { db } from "@backend/lib/db";
+import {
+  getPaymentRecoveryAttemptsCount,
+  listPaymentRecoveryAttempts,
+} from "@backend/lib/admin-orders-queries";
 import { requireAdminPage } from "@backend/lib/session";
-import { OrderStatuses } from "@backend/lib/enums.mjs";
 import { formatPrice, orderCurrencyLabel } from "@backend/lib/money";
 
 export const metadata = { title: "Payment recovery - Admin" };
@@ -12,30 +14,10 @@ export default async function PaymentRecoveryPage({
 }) {
   await requireAdminPage();
   const query = await searchParams;
-  const where = {
-    OR: [{ order: { status: OrderStatuses.Pending } }, { requiresManualReview: true }],
-  };
-  const total = await db.paymentAttempt.count({ where });
+  const total = await getPaymentRecoveryAttemptsCount();
   const pages = Math.max(1, Math.ceil(total / 50));
   const page = Math.min(pages, Math.max(1, Math.floor(Number(query.page) || 1)));
-  const attempts = await db.paymentAttempt.findMany({
-    where,
-    include: {
-      order: {
-        select: {
-          number: true,
-          totalCents: true,
-          walletPaidCents: true,
-          currencyCode: true,
-          currencySymbol: true,
-          recipientName: true,
-        },
-      },
-    },
-    orderBy: [{ expiresAt: "asc" }, { id: "asc" }],
-    skip: (page - 1) * 50,
-    take: 50,
-  });
+  const attempts = await listPaymentRecoveryAttempts(page);
   return (
     <div>
       <h1 className="text-2xl font-bold">Payment recovery</h1>

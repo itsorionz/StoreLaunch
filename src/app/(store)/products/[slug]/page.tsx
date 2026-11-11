@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { getProductBySlug, getRelatedProducts } from "@backend/lib/catalog";
 import { getStoreSettings } from "@backend/lib/settings";
 import { getCurrentUser } from "@backend/lib/session";
-import { db } from "@backend/lib/db";
+import { getStockNotification, getWishlistItem } from "@backend/lib/store-page-queries";
 import { ProductRow } from "@frontend/components/products/product-row";
 import { ProductDetailClient } from "@frontend/components/products/product-detail-client";
 
@@ -29,17 +29,9 @@ async function ProductContent({ params }: { params: Promise<{ slug: string }> })
   ]);
   if (!product) notFound();
 
-  const notifyEnabled = user
-    ? !!(await db.stockNotification.findUnique({
-        where: { userId_productId: { userId: user.id, productId: product.id } },
-      }))
-    : false;
+  const notifyEnabled = user ? !!(await getStockNotification(user.id, product.id)) : false;
 
-  const wishlisted = user
-    ? !!(await db.wishlist.findUnique({
-        where: { userId_productId: { userId: user.id, productId: product.id } },
-      }))
-    : false;
+  const wishlisted = user ? !!(await getWishlistItem(user.id, product.id)) : false;
 
   const related = await getRelatedProducts(product.category.slug, product.id);
 

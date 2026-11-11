@@ -151,14 +151,18 @@ export function OrderStatusButtons({
                 try {
                   const res = await updateOrderStatus(orderId, s, cashCollected);
                   if (!res.ok) {
-                    setError(res.error ?? "Failed to update status");
+                    const message = res.error ?? "Failed to update status";
+                    setError(message);
+                    toast(message, "error");
                     return;
                   }
                   toast(`Order updated: ${ORDER_STATUS_LABELS[s] ?? s}`);
                   setCashCollected(false);
                   router.refresh();
                 } catch {
-                  setError("Could not save the status. Please try again.");
+                  const message = "Could not save the status. Please try again.";
+                  setError(message);
+                  toast(message, "error");
                 }
               });
             }}

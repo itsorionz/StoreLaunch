@@ -192,7 +192,7 @@ export function ProductForm({
           label="Barcode"
           name="barcode"
           defaultValue={product?.barcode ?? ""}
-          placeholder="Scan or type"
+          placeholder="Leave blank to auto-generate"
         />
         <Input
           label="Weight (g)"
@@ -222,8 +222,9 @@ export function ProductForm({
         />
       </div>
       <p className="-mt-2 text-xs text-muted">
-        Barcode, weight and size are used for scanning and courier labels. Cost price powers margin
-        reports and is never shown to customers.
+        Barcode, weight and size are used for scanning and courier labels. Leave the barcode blank
+        and one is generated automatically when the product is saved. Leaving SKU blank uses the
+        slug. Cost price powers margin reports and is never shown to customers.
       </p>
 
       <div className="grid gap-4 sm:grid-cols-2">

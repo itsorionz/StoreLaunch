@@ -1,12 +1,12 @@
-import type { DeliveryAttempt, DeliveryProof } from "@backend/generated/prisma/client";
+import type { DeliveryAttemptView, DeliveryProofView } from "@backend/lib/rider-delivery";
 import { attemptReasons } from "@backend/lib/rider-delivery";
 
 export function DeliveryEvidence({
   proof,
   attempts,
 }: {
-  proof: Omit<DeliveryProof, "photoData"> | null;
-  attempts: DeliveryAttempt[];
+  proof: DeliveryProofView | null;
+  attempts: DeliveryAttemptView[];
 }) {
   return (
     <>

@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
 
 type Theme = "light" | "dark";
 
@@ -10,10 +10,14 @@ const ThemeContext = createContext<{ theme: Theme; setTheme: (t: Theme) => void 
 });
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>(() => {
-    if (typeof document === "undefined") return "light";
-    return document.documentElement.classList.contains("dark") ? "dark" : "light";
-  });
+  const [theme, setThemeState] = useState<Theme>("light");
+
+  useEffect(() => {
+    if (typeof document !== "undefined") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setThemeState(document.documentElement.classList.contains("dark") ? "dark" : "light");
+    }
+  }, []);
 
   const setTheme = useCallback((t: Theme) => {
     setThemeState(t);
@@ -34,15 +38,23 @@ export function useTheme() {
 
 export function ThemeToggle({ className = "" }: { className?: string }) {
   const { theme, setTheme } = useTheme();
+  // The server always renders the light-theme icon; the real theme only becomes
+  // known after mount (root ThemeProvider syncs it from the pre-hydration
+  // theme script). Rendering the theme icon before then would mismatch the
+  // streamed server HTML and fail hydration.
+  const [mounted, setMounted] = useState(false);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => setMounted(true), []);
+  const activeTheme: Theme = mounted ? theme : "light";
   return (
     <button
       type="button"
-      aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+      aria-label={activeTheme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
       onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
       suppressHydrationWarning
       className={`inline-flex h-7 w-7 items-center justify-center rounded-full transition-colors hover:bg-foreground/10 ${className}`}
     >
-      {theme === "dark" ? (
+      {activeTheme === "dark" ? (
         <svg
           width="15"
           height="15"

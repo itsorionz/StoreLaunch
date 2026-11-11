@@ -26,7 +26,8 @@ export function WishlistButton({
     setPending(false);
     if (!res.ok) {
       toast(res.error ?? "Could not update wishlist", "error");
-      if (res.error === "Sign in to save items") router.push(`/login?callbackUrl=/products`);
+      if (res.error === "Sign in to save items")
+        router.push(`/login?callbackUrl=${encodeURIComponent(window.location.pathname)}`);
       return;
     }
     setOn(res.on ?? false);

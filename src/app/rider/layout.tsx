@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
 import { getRider } from "@backend/lib/session";
 import { logoutAction } from "@backend/actions/auth";
 import { RiderNav, RiderBottomNav } from "@frontend/components/rider/rider-nav";
+import { RouteLoading } from "@frontend/components/ui/route-loading";
 
 export const metadata = {
   title: "Deliveries",
@@ -100,7 +101,7 @@ async function RiderShell({ children }: { children: React.ReactNode }) {
 
 export default function RiderLayout({ children }: { children: React.ReactNode }) {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-background" />}>
+    <Suspense fallback={<RouteLoading className="min-h-screen bg-background" />}>
       <RiderShell>{children}</RiderShell>
     </Suspense>
   );

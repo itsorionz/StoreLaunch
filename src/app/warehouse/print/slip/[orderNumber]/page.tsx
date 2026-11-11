@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireWarehousePage } from "@backend/lib/session";
-import { db } from "@backend/lib/db";
+import { getPackingSlipOrder } from "@backend/lib/warehouse-queries";
 import { PrintButton } from "@frontend/components/sales/print-button";
 
 export const metadata = { title: "Packing slip" };
@@ -14,13 +14,7 @@ export default async function PackingSlipPage({
   await requireWarehousePage();
   const { orderNumber } = await params;
 
-  const order = await db.order.findUnique({
-    where: { number: orderNumber },
-    include: {
-      items: { include: { product: { select: { sku: true, barcode: true } } } },
-      warehouse: { select: { name: true, code: true } },
-    },
-  });
+  const order = await getPackingSlipOrder(orderNumber);
   if (!order) notFound();
 
   return (

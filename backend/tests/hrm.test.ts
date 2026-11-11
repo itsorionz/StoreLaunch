@@ -451,6 +451,10 @@ async function main() {
       });
       assert.ok(retry.ok, "rejected leave no longer blocks the range");
 
+      // Decide the retry so it does not linger as Pending and leak into the
+      // overview's pending-leave count (which only admits past-starting rows).
+      assert.ok((await decideLeave(retry.id!, "Approved", admin.id)).ok);
+
       assert.equal(
         requestLeaveSchema.safeParse({
           employeeId: nadia!.id,

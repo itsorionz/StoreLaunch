@@ -176,7 +176,7 @@ function EscalateForm({ ticketId }: { ticketId: string }) {
       action={formAction}
       errors={state?.fieldErrors}
       result={state}
-      successToast={false}
+      successMessage="Ticket escalated."
       noValidate
       className="min-w-0 flex-1 space-y-1.5"
     >

@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { db } from "@backend/lib/db";
-import { CareerApplicationStatuses, CareerJobStatuses } from "@backend/lib/enums.mjs";
+import { getCareersOverview } from "@backend/lib/admin-people-queries";
+import { CareerJobStatuses } from "@backend/lib/enums.mjs";
 import { connection } from "next/server";
 
 export const metadata = { title: "Careers | Admin" };
@@ -8,20 +8,7 @@ export const metadata = { title: "Careers | Admin" };
 export default async function AdminCareersPage() {
   // Open-role filtering depends on the current time — request-only.
   await connection();
-  const [jobs, openRoles, totalApplications, newApplications] = await Promise.all([
-    db.careerJob.findMany({
-      orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
-      include: { _count: { select: { applications: true } } },
-    }),
-    db.careerJob.count({
-      where: {
-        status: CareerJobStatuses.Published,
-        OR: [{ closesAt: null }, { closesAt: { gte: new Date() } }],
-      },
-    }),
-    db.careerApplication.count(),
-    db.careerApplication.count({ where: { status: CareerApplicationStatuses.New } }),
-  ]);
+  const [jobs, openRoles, totalApplications, newApplications] = await getCareersOverview();
 
   return (
     <div className="space-y-6">

@@ -2,6 +2,9 @@ import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import { randomUUID } from "node:crypto";
 import sharp from "sharp";
+import { logger } from "./logger";
+
+const log = logger.child({ scope: "upload-image" });
 
 export async function saveResizedBannerImage(
   file: File,
@@ -63,7 +66,10 @@ async function storeProcessedImage(
         },
       );
       return result.secure_url;
-    } catch {
+    } catch (error) {
+      // Cause is discarded in production (a generic message is thrown), so it
+      // must be recorded here or a Cloudinary outage stays invisible.
+      log.error("cloudinary upload failed", { error, folder });
       if (process.env.NODE_ENV === "production")
         throw new Error(`${label} image storage is temporarily unavailable. Try again later`);
     }

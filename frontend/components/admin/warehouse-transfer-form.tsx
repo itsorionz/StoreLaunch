@@ -3,10 +3,12 @@
 import { useState, type FormEvent } from "react";
 import { requestStockTransfer, type TransferActionResult } from "@backend/actions/transfers";
 import { listWarehouseProducts, type TransferProductHit } from "@backend/actions/warehouse";
+import { useToast } from "@frontend/components/ui/toast";
 
 type WarehouseOption = { id: string; name: string; code: string };
 
 export function WarehouseTransferForm({ warehouses }: { warehouses: WarehouseOption[] }) {
+  const toast = useToast();
   const [products, setProducts] = useState<TransferProductHit[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,6 +45,7 @@ export function WarehouseTransferForm({ warehouses }: { warehouses: WarehouseOpt
     const result: TransferActionResult = await requestStockTransfer(null, fd);
     if (result.ok) {
       setError(null);
+      toast("Stock transfer requested.");
       setFormData({
         fromWarehouseId: "",
         toWarehouseId: "",
@@ -51,9 +54,11 @@ export function WarehouseTransferForm({ warehouses }: { warehouses: WarehouseOpt
         notes: "",
       });
       setProducts([]);
-      window.location.reload();
+      setTimeout(() => window.location.reload(), 900);
     } else {
-      setError(result.error ?? "Could not request the transfer");
+      const message = result.error ?? "Could not request the transfer";
+      setError(message);
+      toast(message, "error");
     }
   };
 

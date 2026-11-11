@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { EntityStatuses } from "@backend/lib/enums.mjs";
-import { db } from "@backend/lib/db";
+import { listCampaigns } from "@backend/lib/admin-promotion-queries";
 import { DeleteCampaignButton } from "@frontend/components/admin/delete-buttons";
 import { AddCampaignModal, EditCampaignModal } from "@frontend/components/admin/entity-modals";
 import { PageHeader } from "@frontend/components/admin/admin-ui";
@@ -9,10 +9,7 @@ import { PageHeader } from "@frontend/components/admin/admin-ui";
 export const metadata = { title: "Campaigns — Admin" };
 
 export default async function AdminCampaignsPage() {
-  const campaigns = await db.campaign.findMany({
-    orderBy: { order: "asc" },
-    include: { _count: { select: { products: true } } },
-  });
+  const campaigns = await listCampaigns();
 
   return (
     <div className="animate-fade-up">

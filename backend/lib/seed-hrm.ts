@@ -71,7 +71,7 @@ type SeedEmployee = {
 // roll" onboarding prompt has content.
 const employees: SeedEmployee[] = [
   {
-    email: "support@store.local",
+    email: "support@store.storelaunch.com",
     name: "Tanvir Hasan",
     role: Roles.Support,
     designation: "Support Lead",
@@ -85,7 +85,7 @@ const employees: SeedEmployee[] = [
     notes: "Handles escalations and the support portal.",
   },
   {
-    email: "keeper@store.local",
+    email: "warehouse@store.storelaunch.com",
     name: "Rahim Uddin",
     role: Roles.Warehouse,
     designation: "Warehouse Executive",
@@ -98,7 +98,7 @@ const employees: SeedEmployee[] = [
     emergencyContactPhone: "01822222222",
   },
   {
-    email: "sales@store.local",
+    email: "sales@store.storelaunch.com",
     name: "Farhana Akter",
     role: Roles.Sales,
     designation: "Sales Executive",
@@ -111,7 +111,7 @@ const employees: SeedEmployee[] = [
     emergencyContactPhone: "01933333333",
   },
   {
-    email: "nusrat@store.local",
+    email: "nusrat@store.storelaunch.com",
     password: "nusrat1234",
     name: "Nusrat Jahan",
     role: Roles.Support,
@@ -127,7 +127,7 @@ const employees: SeedEmployee[] = [
     notes: "Onboarding buddy: Tanvir Hasan.",
   },
   {
-    email: "imran@store.local",
+    email: "imran@store.storelaunch.com",
     password: "imran1234",
     name: "Imran Kabir",
     role: Roles.Sales,
@@ -143,8 +143,8 @@ const employees: SeedEmployee[] = [
   },
   {
     // The Manager account from seed-data.ts, onboarded so /hrm has content
-    // for the manager@store.local login.
-    email: "manager@store.local",
+    // for the manager@store.storelaunch.com login.
+    email: "manager@store.storelaunch.com",
     name: "Operations Manager",
     role: Roles.Manager,
     designation: "Operations Manager",
@@ -193,7 +193,7 @@ export async function seedHrm(prisma: PrismaClient) {
   }
 
   const now = new Date();
-  const admin = await prisma.user.findUnique({ where: { email: "admin@store.local" } });
+  const admin = await prisma.user.findUnique({ where: { email: "admin@store.storelaunch.com" } });
   const settings = await prisma.storeSettings.findUnique({ where: { singletonKey: 1 } });
   const currencyCode = settings?.currencyCode ?? "BDT";
 
@@ -245,7 +245,7 @@ export async function seedHrm(prisma: PrismaClient) {
 
   // A staff account deliberately left un-onboarded so the Employees page and
   // the HRM overview show the "not on the roll" onboarding prompt.
-  const pendingEmail = "hasan@store.local";
+  const pendingEmail = "hasan@store.storelaunch.com";
   const pendingExists = await prisma.user.findUnique({ where: { email: pendingEmail } });
   if (!pendingExists) {
     const passwordHash = await bcrypt.hash("hasan1234", 10);
@@ -281,7 +281,7 @@ export async function seedHrm(prisma: PrismaClient) {
 
       const base = { employeeId: row.id, date: day, markedById: admin?.id ?? null };
 
-      if (row.employee.email === "keeper@store.local" && rahimLeaveDays.has(ago)) {
+      if (row.employee.email === "warehouse@store.storelaunch.com" && rahimLeaveDays.has(ago)) {
         records.push({ ...base, status: AttendanceStatuses.Leave });
       } else if (ago % 9 === 4) {
         // A half day every so often, with morning-only hours.
@@ -292,7 +292,7 @@ export async function seedHrm(prisma: PrismaClient) {
           checkOutAt: at(day, "14:00"),
           workedMinutes: 270,
         });
-      } else if (ago === 6 && row.employee.email === "sales@store.local") {
+      } else if (ago === 6 && row.employee.email === "sales@store.storelaunch.com") {
         records.push({ ...base, status: AttendanceStatuses.Absent });
       } else {
         const late = ago % 7 === 3;
@@ -315,7 +315,7 @@ export async function seedHrm(prisma: PrismaClient) {
     const already = await prisma.leaveRequest.count({ where: { employeeId: row.id } });
     if (already) continue;
 
-    if (row.employee.email === "keeper@store.local") {
+    if (row.employee.email === "warehouse@store.storelaunch.com") {
       // Approved sick leave matching the Leave-marked attendance days above.
       await prisma.leaveRequest.create({
         data: {
@@ -329,7 +329,7 @@ export async function seedHrm(prisma: PrismaClient) {
           decidedAt: new Date(today.getTime() - 13 * DAY),
         },
       });
-    } else if (row.employee.email === "sales@store.local") {
+    } else if (row.employee.email === "sales@store.storelaunch.com") {
       // A pending request starting soon, for the approve/reject demo.
       await prisma.leaveRequest.create({
         data: {
@@ -341,7 +341,7 @@ export async function seedHrm(prisma: PrismaClient) {
           status: LeaveStatuses.Pending,
         },
       });
-    } else if (row.employee.email === "support@store.local") {
+    } else if (row.employee.email === "support@store.storelaunch.com") {
       // A rejected request, so all three decision states appear in the list.
       await prisma.leaveRequest.create({
         data: {
@@ -383,9 +383,9 @@ export async function seedHrm(prisma: PrismaClient) {
             const base = row.employee.salaryTaka! * 100;
             // Demo adjustments on the current month's draft run.
             const allowances =
-              !fullyPaid && row.employee.email === "sales@store.local" ? 150000 : 0;
+              !fullyPaid && row.employee.email === "sales@store.storelaunch.com" ? 150000 : 0;
             const deductions =
-              !fullyPaid && row.employee.email === "keeper@store.local" ? 50000 : 0;
+              !fullyPaid && row.employee.email === "warehouse@store.storelaunch.com" ? 50000 : 0;
             return {
               employeeId: row.id,
               baseSalaryCents: base,
@@ -403,20 +403,20 @@ export async function seedHrm(prisma: PrismaClient) {
 
   // ----- performance reviews ----------------------------------------------
   const reviewPlan: Record<string, { rating: number; summary: string }> = {
-    "support@store.local": {
+    "support@store.storelaunch.com": {
       rating: 5,
       summary:
         "Ticket response time is the fastest on the team; customers frequently mention her by name.",
     },
-    "keeper@store.local": {
+    "warehouse@store.storelaunch.com": {
       rating: 4,
       summary: "Pick accuracy is solid. Aim to standardise shelf labelling next quarter.",
     },
-    "sales@store.local": {
+    "sales@store.storelaunch.com": {
       rating: 3,
       summary: "Good walker-in conversion; needs more focus on follow-ups for repeat orders.",
     },
-    "nusrat@store.local": {
+    "nusrat@store.storelaunch.com": {
       rating: 4,
       summary: "First-month probation check-in: picked up the ops tooling quickly.",
     },
@@ -454,7 +454,7 @@ export async function seedHrm(prisma: PrismaClient) {
         url: `https://example.com/contracts/${row.employee.email.split("@")[0]}.pdf`,
       },
     });
-    if (row.employee.email === "sales@store.local") {
+    if (row.employee.email === "sales@store.storelaunch.com") {
       // A stored file so the admin-only download route has something to stream.
       await prisma.employeeDocument.create({
         data: {

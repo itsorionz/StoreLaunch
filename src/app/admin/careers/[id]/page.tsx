@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { db } from "@backend/lib/db";
+import { getCareerJob } from "@backend/lib/admin-people-queries";
 import { CareerApplicationStatuses } from "@backend/lib/enums.mjs";
 import { CareerJobForm } from "@frontend/components/admin/career-job-form";
 import { CareerApplicationStatusForm } from "@frontend/components/admin/career-application-status-form";
@@ -9,27 +9,7 @@ export const metadata = { title: "Manage job | Admin" };
 
 export default async function ManageCareerJobPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const job = await db.careerJob.findUnique({
-    where: { id },
-    include: {
-      applications: {
-        orderBy: { createdAt: "desc" },
-        take: 100,
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          phone: true,
-          resumeUrl: true,
-          resumeFileName: true,
-          coverLetter: true,
-          status: true,
-          createdAt: true,
-          employee: { select: { id: true } },
-        },
-      },
-    },
-  });
+  const job = await getCareerJob(id);
   if (!job) notFound();
 
   const newApplications = job.applications.filter(

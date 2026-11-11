@@ -4,7 +4,8 @@ import { Roles } from "@backend/lib/enums.mjs";
 import { ValidatedForm, ValidationInput } from "@frontend/components/ui/validated-form";
 
 import Link from "next/link";
-import { useActionState, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useActionState, useEffect, useState } from "react";
 import {
   loginAction,
   registerAction,
@@ -23,6 +24,7 @@ export type LoginRole =
   | typeof Roles.Customer
   | typeof Roles.Rider
   | typeof Roles.Admin
+  | typeof Roles.SuperAdmin
   | typeof Roles.Support
   | typeof Roles.Warehouse
   | typeof Roles.Sales
@@ -33,6 +35,7 @@ const roleLabels: Record<LoginRole, (dict: ReturnType<typeof useDict>) => string
   [Roles.Customer]: (dict) => dict.auth.roleCustomer,
   [Roles.Rider]: (dict) => dict.auth.roleRider,
   [Roles.Admin]: (dict) => dict.auth.roleAdmin,
+  [Roles.SuperAdmin]: (dict) => dict.auth.roleSuperAdmin,
   [Roles.Support]: (dict) => dict.auth.roleSupport,
   [Roles.Warehouse]: (dict) => dict.auth.roleWarehouse,
   [Roles.Sales]: (dict) => dict.auth.roleSales,
@@ -47,7 +50,7 @@ export function LoginTabs({
   pendingProof?: { ticket: string; roles: LoginRole[] } | null;
 }) {
   const dict = useDict();
-  const [tab, setTab] = useState<"email" | "phone">("email");
+  const [tab, setTab] = useState<"email" | "phone">("phone");
   if (pendingProof && pendingProof.roles.length > 1)
     return (
       <LoginRoleChoice
@@ -59,7 +62,7 @@ export function LoginTabs({
   return (
     <>
       <div className="mb-5 flex rounded-xl bg-surface-2 p-1">
-        {(["email", "phone"] as const).map((t) => (
+        {(["phone", "email"] as const).map((t) => (
           <button
             key={t}
             type="button"
@@ -173,7 +176,11 @@ function PhoneOtpFlow({
         </button>
         <p className="text-center text-sm text-muted">
           {dict.auth.newHere}{" "}
-          <Link href="/register" className="font-semibold text-primary hover:underline">
+          <Link
+            href="/register?from=auth"
+            replace
+            className="font-semibold text-primary hover:underline"
+          >
             {dict.auth.createAccount}
           </Link>
         </p>
@@ -258,7 +265,13 @@ function LoginRoleChoice({
   callbackUrl?: string;
 }) {
   const dict = useDict();
+  const router = useRouter();
   const [state, action, pending] = useActionState(selectLoginRoleAction, null);
+  useEffect(() => {
+    if (state?.ok && typeof state.url === "string") {
+      router.push(state.url, { scroll: false });
+    }
+  }, [state, router]);
   return (
     <ValidatedForm
       errors={state?.fieldErrors}
@@ -304,10 +317,16 @@ function LoginRoleChoice({
 
 export function LoginForm({ callbackUrl }: { callbackUrl?: string }) {
   const dict = useDict();
+  const router = useRouter();
   const permalink = callbackUrl
     ? `/login?callbackUrl=${encodeURIComponent(callbackUrl)}`
     : "/login";
   const [state, action, pending] = useActionState(loginAction, null, permalink);
+  useEffect(() => {
+    if (state?.ok && typeof state.url === "string") {
+      router.push(state.url, { scroll: false });
+    }
+  }, [state, router]);
   if (state?.ticket && state.roles && state.roles.length > 1)
     return <LoginRoleChoice ticket={state.ticket} roles={state.roles} callbackUrl={callbackUrl} />;
   return (
@@ -352,12 +371,20 @@ export function LoginForm({ callbackUrl }: { callbackUrl?: string }) {
       </button>
       <p className="text-center text-sm text-muted">
         {dict.auth.newHere}{" "}
-        <Link href="/register" className="font-semibold text-primary hover:underline">
+        <Link
+          href="/register?from=auth"
+          replace
+          className="font-semibold text-primary hover:underline"
+        >
           {dict.auth.createAccount}
         </Link>
       </p>
       <p className="text-center text-sm">
-        <Link href="/forgot-password" className="font-semibold text-primary hover:underline">
+        <Link
+          href="/forgot-password?from=auth"
+          replace
+          className="font-semibold text-primary hover:underline"
+        >
           Forgot password?
         </Link>
       </p>
@@ -384,7 +411,7 @@ export function ForgotPasswordForm() {
         <p role="status" className="rounded-lg bg-primary-light p-3 text-sm text-primary-dark">
           Your password has been updated. Sign in with your new password.
         </p>
-        <Link className="btn-primary block w-full text-center" href="/login">
+        <Link className="btn-primary block w-full text-center" href="/login?from=auth" replace>
           Sign in
         </Link>
       </div>
@@ -505,7 +532,7 @@ export function ForgotPasswordForm() {
         {requestPending ? "Sending…" : "Continue"}
       </button>
       <p className="text-center text-sm">
-        <Link className="font-semibold text-primary" href="/login">
+        <Link className="font-semibold text-primary" href="/login?from=auth" replace>
           Back to sign in
         </Link>
       </p>
@@ -524,7 +551,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
         <p role="status" className="text-sm text-primary-dark">
           Your password has been updated.
         </p>
-        <Link className="btn-primary block text-center" href="/login">
+        <Link className="btn-primary block text-center" href="/login?from=auth" replace>
           Sign in
         </Link>
       </div>
@@ -645,7 +672,11 @@ export function RegisterForm({ referralCode = "" }: { referralCode?: string }) {
       </button>
       <p className="text-center text-sm text-muted">
         {dict.auth.alreadyHave}{" "}
-        <Link href="/login" className="font-semibold text-primary hover:underline">
+        <Link
+          href="/login?from=auth"
+          replace
+          className="font-semibold text-primary hover:underline"
+        >
           {dict.auth.signIn}
         </Link>
       </p>

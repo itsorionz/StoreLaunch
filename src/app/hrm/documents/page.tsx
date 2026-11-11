@@ -1,15 +1,13 @@
-import { useActionState, useEffect, useTransition } from "react";
+"use client";
+
+import { useActionState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { requireHrmPage } from "@backend/lib/session";
-import { saveEmployeeDocument, removeEmployeeDocument, type HrmActionResult } from "@backend/actions/hrm";
+import { saveEmployeeDocument, type HrmActionResult } from "@backend/actions/hrm";
 import { DocumentForm, DocumentDeleteButton } from "@frontend/components/hrm/document-form";
-import { useToast } from "@frontend/components/ui/toast";
 
 export default function HrmDocumentsPage() {
   const router = useRouter();
-  const dict = useToast();
-  const [state, action, pending] = useActionState<HrmActionResult, FormData>(saveEmployeeDocument, null);
-  const toast = useToast();
+  const [state] = useActionState<HrmActionResult, FormData>(saveEmployeeDocument, null);
 
   useEffect(() => {
     if (state?.ok) router.refresh();

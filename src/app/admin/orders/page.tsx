@@ -1,7 +1,8 @@
 import { OrderStatuses } from "@backend/lib/enums.mjs";
+import { unstable_noStore } from "next/cache";
 import { requireAdminPage } from "@backend/lib/session";
 import Link from "next/link";
-import { db } from "@backend/lib/db";
+import { getOrdersList } from "@backend/lib/admin-orders-queries";
 import { formatPrice, orderCurrencyLabel } from "@backend/lib/money";
 import { PageHeader, StatusBadge } from "@frontend/components/admin/admin-ui";
 import { adminOrderQueues } from "@backend/lib/admin-order-queues";
@@ -14,8 +15,16 @@ export default async function AdminOrdersPage({
 }: {
   searchParams: Promise<{ status?: string; cod?: string; queue?: string; range?: string }>;
 }) {
+  unstable_noStore();
   await requireAdminPage();
   const filters = await searchParams;
+  const { orders, total } = await getOrdersList({
+    status: filters.status,
+    cod: filters.cod,
+    queue: filters.queue,
+    range: filters.range,
+  });
+
   const validStatuses = [
     OrderStatuses.Pending,
     OrderStatuses.Paid,
@@ -28,33 +37,17 @@ export default async function AdminOrdersPage({
     OrderStatuses.Cancelled,
   ] as const;
   const status = validStatuses.find((value) => value === filters.status);
+
   const unremitted = filters.cod === "unremitted";
   const queues = adminOrderQueues();
   const queue =
     filters.queue && Object.prototype.hasOwnProperty.call(queues, filters.queue)
       ? queues[filters.queue as keyof typeof queues]
       : undefined;
-  const period = ["7", "30", "90"].includes(filters.range ?? "")
-    ? adminDashboardPeriods(filters.range)
-    : null;
-  const [orders] = await Promise.all([
-    db.order.findMany({
-      where: {
-        AND: [
-          queue?.where ?? {},
-          ...(status ? [{ status }] : []),
-          ...(unremitted ? [{ codCollection: { is: { remittedAt: null } } }] : []),
-          ...(period ? [{ createdAt: { gte: period.start, lte: period.end } }] : []),
-        ],
-      },
-      orderBy: { createdAt: "desc" },
-      include: {
-        user: { select: { name: true, email: true } },
-        items: { select: { quantity: true } },
-      },
-      take: 100,
-    }),
-  ]);
+  const period =
+    filters.range && ["7", "30", "90"].includes(filters.range ?? "")
+      ? adminDashboardPeriods(filters.range)
+      : null;
 
   const tabs = [
     "ALL",
@@ -71,10 +64,7 @@ export default async function AdminOrdersPage({
 
   return (
     <div className="animate-fade-up">
-      <PageHeader
-        title="Orders"
-        subtitle={`${orders.length} order${orders.length === 1 ? "" : "s"}`}
-      />
+      <PageHeader title="Orders" subtitle={`${total} order${total === 1 ? "" : "s"}`} />
       {(queue || period) && (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm">
           <p>
@@ -134,7 +124,7 @@ export default async function AdminOrdersPage({
               </tr>
             )}
             {orders.map((o) => (
-              <tr key={o.id} className="transition-colors hover:bg-surface-2/50">
+              <tr key={o.id} className="transition-colors:hover:bg-surface-2/50">
                 <td className="px-5 py-3.5">
                   <Link
                     href={`/admin/orders/${o.number}`}
@@ -144,17 +134,17 @@ export default async function AdminOrdersPage({
                   </Link>
                 </td>
                 <td className="px-5 py-3.5">
-                  <p className="font-medium">{o.user.name}</p>
-                  <p className="text-xs text-muted">{o.user.email}</p>
+                  <p className="font-medium">{o.userName}</p>
+                  <p className="text-xs text-muted">{o.userEmail}</p>
                 </td>
-                <td className="px-5 py-3.5">{o.items.reduce((s, i) => s + i.quantity, 0)}</td>
+                <td className="px-5 py-3.5">{o.itemsQuantity}</td>
                 <td className="px-5 py-3.5 font-semibold">
                   <span>{formatPrice(o.totalCents, orderCurrencyLabel(o))}</span>
                 </td>
                 <td className="px-5 py-3.5">
                   <StatusBadge status={o.status} />
                 </td>
-                <td className="px-5 py-3.5 text-muted">{o.createdAt.toLocaleDateString()}</td>
+                <td className="px-5 py-3.5 text-muted">{o.createdAt}</td>
               </tr>
             ))}
           </tbody>

@@ -1,4 +1,7 @@
 import "server-only";
+import { logger } from "./logger";
+
+const log = logger.child({ scope: "sslcommerz" });
 
 const SANDBOX_BASE = "https://sandbox.sslcommerz.com";
 const LIVE_BASE = "https://securepay.sslcommerz.com";
@@ -147,7 +150,10 @@ export async function validateSslcommerzPayment(
       currencyType: data?.currency_type ?? data?.currency,
       highRisk: String(data?.risk_level ?? "0") !== "0",
     };
-  } catch {
+  } catch (error) {
+    // Validation is the source of truth for IPN fulfilment — a transport or
+    // parse failure here means a paid order cannot be verified right now.
+    log.warn("payment validation request failed", { error, valId });
     return null;
   }
 }
@@ -198,7 +204,8 @@ export async function querySslcommerzPayment(
     if (successful.length) return { kind: "Unknown" };
     if (rows.every((row) => row.status === "FAILED")) return { kind: "Failed" };
     return { kind: rows.some((row) => row.status === "PENDING") ? "Pending" : "Unknown" };
-  } catch {
+  } catch (error) {
+    log.warn("payment query request failed", { error, tranId, hasSessionKey: Boolean(sessionKey) });
     return { kind: "Unknown" };
   }
 }

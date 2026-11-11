@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { z } from "zod";
-import { db } from "@backend/lib/db";
 import { requireHrmPage } from "@backend/lib/session";
-import { listEmployees, bdDayKey } from "@backend/lib/hrm";
+import { listEmployees, bdDayKey, getHiringApplication } from "@backend/lib/hrm";
 import { PageHeader } from "@frontend/components/admin/admin-ui";
 import { EmployeeForm } from "@frontend/components/hrm/employee-form";
 
@@ -30,16 +29,7 @@ export default async function Hrm({
 
   // Hiring handoff: a Hired application prefills name/email and gets linked.
   const application = params.applicationId
-    ? await db.careerApplication.findUnique({
-        where: { id: params.applicationId },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          status: true,
-          employee: { select: { id: true } },
-        },
-      })
+    ? await getHiringApplication(params.applicationId)
     : null;
   const hireable = application && application.status === "Hired" && !application.employee;
 

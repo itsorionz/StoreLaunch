@@ -17,6 +17,7 @@ export type ProductCardData = {
   stock: number;
   images: string[];
   flashSale: boolean;
+  featured: boolean;
   brand: { name: string; nameBn: string | null; slug: string } | null;
   ratingAvg: number;
   ratingCount: number;
@@ -32,6 +33,7 @@ const cardSelect = {
   stock: true,
   images: true,
   flashSale: true,
+  featured: true,
   campaignOffers: campaignPriceSelect,
   brand: { select: { name: true, nameBn: true, slug: true } },
   reviews: {
@@ -50,6 +52,7 @@ type RawProduct = {
   stock: number;
   images: string[];
   flashSale: boolean;
+  featured: boolean;
   brand: { name: string; nameBn: string | null; slug: string } | null;
   campaignOffers: { offerPriceCents: number; campaign: { flashSale: boolean } }[];
   reviews: { rating: number }[];
@@ -69,6 +72,7 @@ function toCard(raw: RawProduct): ProductCardData {
     stock: p.stock,
     images: p.images,
     flashSale: p.flashSale,
+    featured: p.featured,
     brand: p.brand,
     ratingAvg: Math.round(avg * 10) / 10,
     ratingCount: count,
@@ -321,6 +325,15 @@ export async function getCategories() {
       _count: { select: { products: true } },
     },
   });
+}
+
+// Minimal slugs for the sitemap route; no rendering shape needed.
+export async function getSitemapEntries() {
+  const [products, categories] = await Promise.all([
+    db.product.findMany({ where: { active: true }, select: { slug: true, updatedAt: true } }),
+    db.category.findMany({ select: { slug: true } }),
+  ]);
+  return { products, categories };
 }
 
 export async function getCategoryBySlug(slug: string) {

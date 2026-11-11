@@ -1,5 +1,15 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
+import { db } from "./db";
+
+// Read side for the delivery-proof photo route: loads a proof with the owning
+// order's rider so the caller can enforce access. Returns the full row.
+export async function getDeliveryProofWithOrder(id: string) {
+  return db.deliveryProof.findUnique({
+    where: { id },
+    include: { order: { select: { riderId: true } } },
+  });
+}
 
 export async function saveProofPhoto(value: FormDataEntryValue | null) {
   if (value === null) return {};

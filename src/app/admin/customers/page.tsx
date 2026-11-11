@@ -1,8 +1,8 @@
 import { requireAdminPage } from "@backend/lib/session";
 import { AccountStatusToggle } from "@frontend/components/admin/account-status-toggle";
 import { StatusBadge } from "@frontend/components/admin/admin-ui";
-import { EntityStatuses, Roles } from "@backend/lib/enums.mjs";
-import { db } from "@backend/lib/db";
+import { EntityStatuses } from "@backend/lib/enums.mjs";
+import { getCustomers } from "@backend/lib/admin-people-queries";
 import { getStoreSettings } from "@backend/lib/settings";
 import { formatPrice } from "@backend/lib/money";
 import { AddCustomerModal } from "@frontend/components/admin/add-customer-modal";
@@ -12,15 +12,7 @@ export const metadata = { title: "Customers — Admin" };
 
 export default async function AdminCustomersPage() {
   const admin = await requireAdminPage();
-  const [customers, settings] = await Promise.all([
-    db.user.findMany({
-      where: { roles: { has: Roles.Customer } },
-      orderBy: { createdAt: "desc" },
-      include: { _count: { select: { orders: true } }, wallet: { select: { balanceCents: true } } },
-      take: 200,
-    }),
-    getStoreSettings(),
-  ]);
+  const [customers, settings] = await Promise.all([getCustomers(200), getStoreSettings()]);
 
   return (
     <div className="animate-fade-up">

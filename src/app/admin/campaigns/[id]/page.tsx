@@ -1,8 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { db } from "@backend/lib/db";
+import {
+  countCampaignProducts,
+  getCampaign,
+  listCampaignProducts,
+} from "@backend/lib/admin-promotion-queries";
 import { getStoreSettings } from "@backend/lib/settings";
-import { productTextWhere } from "@backend/lib/search-filters";
 import { EntityStatuses } from "@backend/lib/enums.mjs";
 import { EditCampaignModal } from "@frontend/components/admin/entity-modals";
 import {
@@ -24,23 +27,13 @@ export default async function CampaignProductsPage({
   const search = await searchParams;
   const q = typeof search.q === "string" ? search.q.trim().slice(0, 200) : "";
   const requestedPage = /^\d{1,6}$/.test(search.page ?? "") ? Math.max(1, Number(search.page)) : 1;
-  const campaign = await db.campaign.findUnique({
-    where: { id },
-    include: { products: { include: { product: true }, orderBy: { product: { name: "asc" } } } },
-  });
+  const campaign = await getCampaign(id);
   if (!campaign) notFound();
-  const where = productTextWhere(q);
-  const count = await db.product.count({ where });
+  const count = await countCampaignProducts(q);
   const totalPages = Math.max(1, Math.ceil(count / 50));
   const page = Math.min(requestedPage, totalPages);
   const [products, settings] = await Promise.all([
-    db.product.findMany({
-      where,
-      orderBy: { name: "asc" },
-      skip: (page - 1) * 50,
-      take: 50,
-      select: { id: true, name: true, priceCents: true, active: true },
-    }),
+    listCampaignProducts(q, page),
     getStoreSettings(),
   ]);
   const pageUrl = (next: number) =>

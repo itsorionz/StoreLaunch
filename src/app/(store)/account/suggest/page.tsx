@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@backend/lib/session";
 import { getDict } from "@frontend/i18n/dict";
 import { FeedbackForm } from "@frontend/components/account/feedback-form";
-import { db } from "@backend/lib/db";
+import { listAccountSuggestions } from "@backend/lib/account-queries";
 
 export const metadata = { title: "Suggest Products" };
 
@@ -11,11 +11,7 @@ async function SuggestContent() {
   const user = await getCurrentUser();
   if (!user) redirect("/login?callbackUrl=/account/suggest");
   const dict = await getDict();
-  const submissions = await db.feedback.findMany({
-    where: { userId: user.id, kind: "suggest" },
-    orderBy: { createdAt: "desc" },
-    take: 20,
-  });
+  const submissions = await listAccountSuggestions(user.id);
 
   return (
     <div className="space-y-4">

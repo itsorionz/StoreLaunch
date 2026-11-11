@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { db } from "@backend/lib/db";
+import { listBrands } from "@backend/lib/admin-catalog-queries";
 import { DeleteBrandButton } from "@frontend/components/admin/delete-buttons";
 import { AddBrandModal, EditBrandModal } from "@frontend/components/admin/entity-modals";
 import { PageHeader } from "@frontend/components/admin/admin-ui";
@@ -7,10 +7,7 @@ import { PageHeader } from "@frontend/components/admin/admin-ui";
 export const metadata = { title: "Brands — Admin" };
 
 export default async function AdminBrandsPage() {
-  const brands = await db.brand.findMany({
-    orderBy: { name: "asc" },
-    include: { _count: { select: { products: true } } },
-  });
+  const brands = await listBrands();
 
   return (
     <div className="animate-fade-up">

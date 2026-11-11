@@ -4,7 +4,11 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@backend/lib/session";
 import { getStoreSettings } from "@backend/lib/settings";
 import { getReferralCode } from "@backend/lib/referrals";
-import { db } from "@backend/lib/db";
+import {
+  countAccountReferrals,
+  getAccountReferralRewards,
+  listAccountReferralHistory,
+} from "@backend/lib/account-queries";
 import { formatPrice } from "@backend/lib/money";
 import { ReferralShare, ReferralSteps } from "@frontend/components/account/referral-share";
 
@@ -16,24 +20,9 @@ async function ReferContent() {
   const [settings, code, count, rewards, history] = await Promise.all([
     getStoreSettings(),
     getReferralCode(user.id),
-    db.referral.count({ where: { referrerId: user.id } }),
-    db.referral.aggregate({
-      where: { referrerId: user.id, rewardedAt: { not: null } },
-      _count: true,
-      _sum: { rewardCents: true },
-    }),
-    db.referral.findMany({
-      where: { referrerId: user.id },
-      orderBy: { createdAt: "desc" },
-      take: 10,
-      select: {
-        id: true,
-        rewardCents: true,
-        currencyCode: true,
-        createdAt: true,
-        rewardedAt: true,
-      },
-    }),
+    countAccountReferrals(user.id),
+    getAccountReferralRewards(user.id),
+    listAccountReferralHistory(user.id),
   ]);
   const reward = formatPrice(settings.referralRewardCents, settings.currencySymbol);
   const link = new URL(

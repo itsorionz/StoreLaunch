@@ -1,12 +1,11 @@
 import Link from "next/link";
 import { requireServicePage } from "@backend/lib/session";
-import { db } from "@backend/lib/db";
+import { listSupportOrders } from "@backend/lib/support-queries";
 import { getDict } from "@frontend/i18n/dict";
 import { formatPrice } from "@backend/lib/money";
 import { getStoreSettings } from "@backend/lib/settings";
 import { StatusBadge } from "@frontend/components/admin/admin-ui";
 import { FilterPills } from "@frontend/components/service/service-ui";
-import { orderTextWhere } from "@backend/lib/search-filters";
 import {
   AfterSalesStatuses,
   OrderStatuses,
@@ -73,26 +72,7 @@ export default async function SupportOrdersPage({
       : undefined;
   const q = (params.q ?? "").trim().slice(0, 120);
 
-  const [orders, counts] = await Promise.all([
-    db.order.findMany({
-      where: { AND: [queue?.where ?? {}, q ? orderTextWhere(q) : {}] },
-      orderBy: { createdAt: "desc" },
-      take: 100,
-      include: {
-        user: { select: { id: true, name: true } },
-        items: { select: { quantity: true } },
-      },
-    }),
-    Promise.all(
-      Object.entries(queues).map(([, entry]) => db.order.count({ where: entry.where })),
-    ).then(
-      (values) =>
-        Object.fromEntries(Object.keys(queues).map((key, index) => [key, values[index]])) as Record<
-          string,
-          number
-        >,
-    ),
-  ]);
+  const { orders, counts } = await listSupportOrders({ queues, queue, q });
 
   const linkWith = (patch: Record<string, string | undefined>) => {
     const merged: Record<string, string | undefined> = {

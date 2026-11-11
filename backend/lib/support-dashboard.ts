@@ -84,6 +84,19 @@ function bucketCounts(
   }));
 }
 
+// Header badge counts shared by the support and HRM shells: closed chat
+// threads and still-open tickets. Both shells render the same two numbers.
+export async function getSupportBadgeCounts(): Promise<{
+  closedConversations: number;
+  openTickets: number;
+}> {
+  const [closedConversations, openTickets] = await Promise.all([
+    db.chatConversation.count({ where: { status: ChatConversationStatuses.Closed } }),
+    db.supportTicket.count({ where: { status: { in: [...OPEN_TICKET_STATUSES] } } }),
+  ]);
+  return { closedConversations, openTickets };
+}
+
 // Support portal overview: live chat health, ticket workload, the operations
 // counts an agent needs when answering "why is my order late?", and a daily
 // trend. Day boundaries follow Bangladesh midnight; every query runs in one

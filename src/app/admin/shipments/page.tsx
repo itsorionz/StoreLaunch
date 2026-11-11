@@ -1,5 +1,9 @@
 import Link from "next/link";
-import { db } from "@backend/lib/db";
+import {
+  listActiveDeliveryCompaniesWithProviderKey,
+  listOrdersWithoutShipment,
+  listShipments,
+} from "@backend/lib/admin-orders-queries";
 import { isSyncableShipment } from "@backend/lib/shipment-sync";
 import {
   CreateShipmentForm,
@@ -10,27 +14,9 @@ export const metadata = { title: "Shipments" };
 
 export default async function ShipmentsPage() {
   const [shipments, orders, companies] = await Promise.all([
-    db.shipment.findMany({
-      include: {
-        order: {
-          select: { number: true, recipientName: true, totalCents: true, currencySymbol: true },
-        },
-        deliveryCompany: { select: { id: true, name: true } },
-      },
-      orderBy: { createdAt: "desc" },
-      take: 200,
-    }),
-    db.order.findMany({
-      where: { shipment: null, status: { notIn: ["Cancelled"] } },
-      select: { id: true, number: true, recipientName: true },
-      orderBy: { createdAt: "desc" },
-      take: 100,
-    }),
-    db.deliveryCompany.findMany({
-      where: { active: true },
-      select: { id: true, name: true, providerKey: true },
-      orderBy: { name: "asc" },
-    }),
+    listShipments(),
+    listOrdersWithoutShipment(),
+    listActiveDeliveryCompaniesWithProviderKey(),
   ]);
 
   return (

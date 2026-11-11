@@ -1,5 +1,4 @@
-import { db } from "@backend/lib/db";
-import { CareerJobStatuses } from "@backend/lib/enums.mjs";
+import { listPublishedCareerJobs } from "@backend/lib/store-page-queries";
 import { CareerApplicationForm } from "@frontend/components/career/career-application-form";
 import { CareerApplyButton } from "@frontend/components/career/career-apply-button";
 import { getCurrentUser } from "@backend/lib/session";
@@ -16,29 +15,7 @@ const displayValue = (value: string) => value.replace(/([a-z])([A-Z])/g, "$1 $2"
 async function CareerContent() {
   // Open-role filtering depends on the current time — request-only.
   await connection();
-  const [jobs, currentUser] = await Promise.all([
-    db.careerJob.findMany({
-      where: {
-        status: CareerJobStatuses.Published,
-        OR: [{ closesAt: null }, { closesAt: { gte: new Date() } }],
-      },
-      orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
-      select: {
-        id: true,
-        slug: true,
-        title: true,
-        department: true,
-        location: true,
-        employmentType: true,
-        workplaceMode: true,
-        summary: true,
-        description: true,
-        requirements: true,
-        closesAt: true,
-      },
-    }),
-    getCurrentUser(),
-  ]);
+  const [jobs, currentUser] = await Promise.all([listPublishedCareerJobs(), getCurrentUser()]);
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 sm:py-12 lg:px-8">

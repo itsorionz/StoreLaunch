@@ -426,3 +426,137 @@ export async function getEmployeeProfile(id: string, now = new Date()) {
     documents,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Page query functions (extracted verbatim from src/app/hrm pages)
+// ---------------------------------------------------------------------------
+
+/** Staff User accounts for /hrm/employees, filtered by q / role / status. */
+export async function searchStaffAccounts(
+  q: string | string[] | undefined,
+  role: string | string[] | undefined,
+  status: string | string[] | undefined,
+) {
+  const filters = q ? { q, role, status } : { q: "", role: "", status: "" };
+
+  const where = {
+    ...(filters.role
+      ? {
+          roles: {
+            has: filters.role as
+              "Customer" | "Admin" | "Rider" | "Support" | "Warehouse" | "Sales" | "Manager",
+          },
+        }
+      : {}),
+    ...(filters.status ? { active: filters.status === "Active" } : {}),
+    ...(filters.q
+      ? {
+          OR: ["name", "email", "phone"].map((field) => ({
+            [field]: { contains: filters.q, mode: "insensitive" as const },
+          })),
+        }
+      : {}),
+  };
+
+  const [users, count] = await Promise.all([
+    db.user.findMany({
+      where,
+      orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+      take: 200,
+      select: { id: true, name: true, email: true, phone: true, roles: true, active: true },
+    }),
+    db.user.count({ where }),
+  ]);
+
+  return { users, count };
+}
+
+/** Hiring application shown on /hrm/employees/new (hiring handoff prefill). */
+export async function getHiringApplication(applicationId: string) {
+  return db.careerApplication.findUnique({
+    where: { id: applicationId },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      status: true,
+      employee: { select: { id: true } },
+    },
+  });
+}
+
+/** Employee record plus attendance, leave, payslips, reviews and documents. */
+export async function getEmployeeDetail(id: string, now = new Date()) {
+  const employee = await db.employee.findUnique({
+    where: { id },
+    include: {
+      user: {
+        select: { id: true, name: true, email: true, phone: true, roles: true, active: true },
+      },
+      application: { select: { id: true, name: true, jobId: true, status: true } },
+    },
+  });
+  if (!employee) return null;
+
+  // Pre-computed date ranges (evaluated once on mount, not during render)
+  const attendanceSince = new Date(now.getTime() - 29 * 86400000);
+  const yearStart = new Date(Date.UTC(now.getUTCFullYear(), 0, 1));
+
+  const [attendance, leaveRequests, takenThisYear, payslips, reviews, documents] =
+    await Promise.all([
+      db.attendanceRecord.findMany({
+        where: { employeeId: id, date: { gte: attendanceSince } },
+        orderBy: { date: "desc" },
+      }),
+      db.leaveRequest.findMany({
+        where: { employeeId: id },
+        orderBy: { startDate: "desc" },
+        take: 20,
+        include: { decidedBy: { select: { name: true } } },
+      }),
+      db.leaveRequest.groupBy({
+        by: ["type"],
+        where: {
+          employeeId: id,
+          status: "Approved",
+          startDate: { gte: yearStart },
+        },
+        _count: true,
+      }),
+      db.payslip.findMany({
+        where: { employeeId: id },
+        orderBy: { run: { month: "desc" } },
+        take: 12,
+        include: { run: { select: { month: true, currencyCode: true } } },
+      }),
+      db.performanceReview.findMany({
+        where: { employeeId: id },
+        orderBy: { periodStart: "desc" },
+        take: 10,
+        include: { reviewer: { select: { name: true } } },
+      }),
+      db.employeeDocument.findMany({
+        where: { employeeId: id },
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          kind: true,
+          title: true,
+          fileName: true,
+          mimeType: true,
+          url: true,
+          createdAt: true,
+        },
+      }),
+    ]);
+
+  return {
+    employee,
+    attendance,
+    leaveRequests,
+    takenThisYear,
+    payslips,
+    reviews,
+    documents,
+  };
+}

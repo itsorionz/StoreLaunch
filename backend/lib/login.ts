@@ -83,6 +83,7 @@ export async function consumeLoginProof(ticket: unknown, role: unknown) {
       [
         Roles.Customer,
         Roles.Admin,
+        Roles.SuperAdmin,
         Roles.Rider,
         Roles.Support,
         Roles.Warehouse,

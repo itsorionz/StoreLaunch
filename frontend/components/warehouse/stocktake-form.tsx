@@ -4,6 +4,7 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createStocktakeAdjustment, type AdminActionResult } from "@backend/actions/admin";
 import { searchStocktakeProduct, type StocktakeProductHit } from "@backend/actions/warehouse";
+import { ActionResultToast } from "@frontend/components/ui/validated-form";
 
 const EMPTY: AdminActionResult | null = null;
 
@@ -45,6 +46,7 @@ export function StocktakeForm({ warehouseIds }: { warehouseIds: string[] }) {
 
   return (
     <form action={formAction} className="space-y-4 rounded-xl border border-border bg-surface p-4">
+      <ActionResultToast result={state} successMessage="Stock adjusted." />
       {warehouseIds.length > 1 && (
         <label className="block">
           <span className="text-xs font-semibold text-muted">Warehouse</span>

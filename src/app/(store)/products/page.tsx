@@ -1,5 +1,5 @@
-import { db } from "@backend/lib/db";
 import Link from "next/link";
+import { getActiveCampaign } from "@backend/lib/store-page-queries";
 import { Suspense } from "react";
 import {
   getProducts,
@@ -62,12 +62,7 @@ async function ProductListing({ searchParams }: { searchParams: Promise<Search> 
       </div>
     );
   const params = parsed.data;
-  const campaign = params.campaign
-    ? await db.campaign.findFirst({
-        where: { id: params.campaign, active: true },
-        select: { title: true },
-      })
-    : null;
+  const campaign = params.campaign ? await getActiveCampaign(params.campaign) : null;
   if (params.campaign && !campaign)
     return (
       <div className="p-6">
@@ -78,17 +73,32 @@ async function ProductListing({ searchParams }: { searchParams: Promise<Search> 
         </Link>
       </div>
     );
+
+  // The campaign narrows the listing only while it is the whole context. Once a
+  // category/brand/deal/search filter is set the shopper is browsing the normal
+  // catalog — intersecting with the campaign would match almost nothing and make
+  // the sidebar look broken.
+  const hasOtherFilters = Boolean(
+    params.q ||
+    params.category ||
+    params.brand ||
+    params.flashSale === "1" ||
+    params.onSale === "1",
+  );
+  const campaignApplied = Boolean(campaign) && !hasOtherFilters;
+  const listing: Search = campaignApplied ? params : { ...params, campaign: undefined };
+
   const settings = await getStoreSettings();
-  const requestedPage = Number(params.page) || 1;
+  const requestedPage = Number(listing.page) || 1;
 
   const { products, total, totalPages, page } = await getProducts({
-    q: params.q,
-    campaign: params.campaign,
-    category: params.category,
-    brand: params.brand,
-    flashSale: params.flashSale === "1",
-    onSale: params.onSale === "1",
-    sort: (params.sort as never) ?? "newest",
+    q: listing.q,
+    campaign: listing.campaign,
+    category: listing.category,
+    brand: listing.brand,
+    flashSale: listing.flashSale === "1",
+    onSale: listing.onSale === "1",
+    sort: (listing.sort as never) ?? "newest",
     page: requestedPage,
     perPage: 24,
   });
@@ -97,8 +107,7 @@ async function ProductListing({ searchParams }: { searchParams: Promise<Search> 
   const brands = await getBrandsWithCount();
   const dict = await getDict();
 
-  const qs = (overrides: Partial<Search>) => {
-    const merged: Search = { ...params, page: undefined, ...overrides };
+  const buildQs = (merged: Search) => {
     const sp = new URLSearchParams();
     for (const [k, v] of Object.entries(merged)) {
       if (v && v !== "newest" && !(k === "page" && v === "1")) sp.set(k, v);
@@ -107,32 +116,64 @@ async function ProductListing({ searchParams }: { searchParams: Promise<Search> 
     return `/products${s ? `?${s}` : ""}`;
   };
 
+  // Sort and paging stay on the current view; sidebar browsing leaves the
+  // campaign and text search behind so category/brand browsing shows that scope.
+  const qs = (overrides: Partial<Search>) => buildQs({ ...params, page: undefined, ...overrides });
+  const navQs = (overrides: Partial<Search>) =>
+    buildQs({ ...params, campaign: undefined, q: undefined, page: undefined, ...overrides });
+
   const activeCategoryName = params.category
     ? (findCategoryName(tree, params.category, dict.lang) ?? "Products")
     : null;
+  const activeBrandName = params.brand
+    ? (brands.find((b) => b.slug === params.brand)?.name ?? null)
+    : null;
+
+  const heading = listing.q
+    ? `Search: "${listing.q}"`
+    : campaignApplied
+      ? campaign!.title
+      : (activeCategoryName ??
+        activeBrandName ??
+        (listing.flashSale === "1"
+          ? "Flash Sale"
+          : listing.onSale === "1"
+            ? "On Sale"
+            : "All Products"));
 
   return (
     <div className="w-full  px-4 py-6">
       <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
-        <h1 className="text-xl font-bold">
-          {params.q
-            ? `Search: "${params.q}"`
-            : (campaign?.title ??
-              activeCategoryName ??
-              (params.flashSale === "1" ? "Flash Sale" : "All Products"))}
-        </h1>
-        <p className="text-sm text-muted">{total} products</p>
+        <h1 className="text-xl font-bold">{heading}</h1>
+        <p className="text-sm text-muted">
+          {total} {total === 1 ? "product" : "products"}
+        </p>
       </div>
+
+      {campaign && !campaignApplied && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/60 bg-surface-2 px-4 py-2.5 text-sm text-muted">
+          <span>
+            <span className="font-medium text-foreground">{campaign.title}</span> isn&apos;t applied
+            while other filters are active — showing the full results below.
+          </span>
+          <Link
+            href={`/products?campaign=${params.campaign}`}
+            className="font-medium text-primary transition-colors hover:text-primary-dark"
+          >
+            View campaign only
+          </Link>
+        </div>
+      )}
 
       <div className="flex gap-6">
         <aside className="hidden w-52 shrink-0 lg:block">
           <FilterSection title="Category">
-            <FilterLink href={qs({ category: undefined })} active={!params.category}>
+            <FilterLink href={navQs({ category: undefined })} active={!params.category}>
               All Categories
             </FilterLink>
             {tree.map((c) => (
               <div key={c.id}>
-                <FilterLink href={qs({ category: c.slug })} active={params.category === c.slug}>
+                <FilterLink href={navQs({ category: c.slug })} active={params.category === c.slug}>
                   {dict.lang === "bn" ? c.nameBn || c.name : c.name} ({c.productCount})
                 </FilterLink>
                 {c.children.length > 0 && (
@@ -140,7 +181,7 @@ async function ProductListing({ searchParams }: { searchParams: Promise<Search> 
                     {c.children.map((child) => (
                       <FilterLink
                         key={child.id}
-                        href={qs({ category: child.slug })}
+                        href={navQs({ category: child.slug })}
                         active={params.category === child.slug}
                       >
                         {dict.lang === "bn" ? child.nameBn || child.name : child.name} (
@@ -154,11 +195,15 @@ async function ProductListing({ searchParams }: { searchParams: Promise<Search> 
           </FilterSection>
 
           <FilterSection title="Brand">
-            <FilterLink href={qs({ brand: undefined })} active={!params.brand}>
+            <FilterLink href={navQs({ brand: undefined })} active={!params.brand}>
               All Brands
             </FilterLink>
             {brands.map((b) => (
-              <FilterLink key={b.id} href={qs({ brand: b.slug })} active={params.brand === b.slug}>
+              <FilterLink
+                key={b.id}
+                href={navQs({ brand: b.slug })}
+                active={params.brand === b.slug}
+              >
                 {dict.lang === "bn" ? b.nameBn || b.name : b.name} ({b._count.products})
               </FilterLink>
             ))}
@@ -166,19 +211,19 @@ async function ProductListing({ searchParams }: { searchParams: Promise<Search> 
 
           <FilterSection title="Deals">
             <FilterLink
-              href={qs({ flashSale: undefined, onSale: undefined })}
+              href={navQs({ flashSale: undefined, onSale: undefined })}
               active={params.flashSale !== "1" && params.onSale !== "1"}
             >
               All deals
             </FilterLink>
             <FilterLink
-              href={qs({ flashSale: "1", onSale: undefined })}
+              href={navQs({ flashSale: "1", onSale: undefined })}
               active={params.flashSale === "1"}
             >
               Flash Sale
             </FilterLink>
             <FilterLink
-              href={qs({ onSale: "1", flashSale: undefined })}
+              href={navQs({ onSale: "1", flashSale: undefined })}
               active={params.onSale === "1"}
             >
               On Sale
@@ -198,11 +243,51 @@ async function ProductListing({ searchParams }: { searchParams: Promise<Search> 
             />
           </div>
 
-          <ProductGrid
-            products={products}
-            currencySymbol={settings.currencySymbol}
-            deliveryEstimate={settings.deliveryEstimate}
-          />
+          {campaign && campaignApplied && total === 0 ? (
+            <div className="card flex flex-col items-center py-20 text-center">
+              <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-surface-2 text-muted">
+                <svg
+                  width="28"
+                  height="28"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden
+                >
+                  <path d="M3 6h18" />
+                  <path d="M7 6a2 2 0 1 0 4 0 2 2 0 1 0 4 0 2 2 0 1 0 4 0" />
+                  <path d="M3 6v12a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6" />
+                  <path d="M7 11v3" />
+                  <path d="M11 11v3" />
+                  <path d="M15 11v3" />
+                </svg>
+              </div>
+              <p className="font-semibold">No products in this campaign yet</p>
+              <p className="mt-1 max-w-sm text-sm text-muted">
+                {campaign.title} hasn&apos;t listed any products right now. Browse the rest of the
+                store instead.
+              </p>
+              <div className="mt-5 flex flex-wrap justify-center gap-3">
+                {campaign.linkUrl && (
+                  <Link href={campaign.linkUrl} className="btn">
+                    Open campaign link
+                  </Link>
+                )}
+                <Link href="/products" className="btn-outline">
+                  Browse all products
+                </Link>
+              </div>
+            </div>
+          ) : (
+            <ProductGrid
+              products={products}
+              currencySymbol={settings.currencySymbol}
+              deliveryEstimate={settings.deliveryEstimate}
+            />
+          )}
 
           {totalPages > 1 && (
             <div className="mt-8 flex items-center justify-center gap-2">

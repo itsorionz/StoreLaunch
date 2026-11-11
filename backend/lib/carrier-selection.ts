@@ -3,6 +3,9 @@ import { CourierApiError, orderToParcel } from "./courier-adapter";
 import { resolveCourierAdapter } from "./courier-adapter-registry";
 import { db } from "./db";
 import { OrderStatuses } from "@backend/lib/enums.mjs";
+import { logger } from "./logger";
+
+const log = logger.child({ scope: "carrier-selection" });
 
 /**
  * Automatic carrier selection at dispatch (§5.3).
@@ -221,6 +224,11 @@ export async function selectCarrierForOrder(orderId: string): Promise<CarrierSel
         } catch (error) {
           // A quote failure only means "unknown cost" — never blocks dispatch.
           if (!(error instanceof CourierApiError)) throw error;
+          log.warn("rate quote rejected", {
+            provider: error.provider,
+            code: error.code,
+            companyId: company.id,
+          });
         }
       }
       const bucket = rtoByCompany.get(company.id);

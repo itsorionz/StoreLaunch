@@ -1,9 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireHrmPage } from "@backend/lib/session";
-import { db } from "@backend/lib/db";
+import { getEmployeeDetail } from "@backend/lib/hrm";
 import { getDict } from "@frontend/i18n/dict";
-import { formatPrice } from "@backend/lib/money";
 import { StatusBadge } from "@frontend/components/admin/admin-ui";
 
 export const metadata = { title: "Employee — HRM" };
@@ -16,69 +15,9 @@ export default async function HrmEmployeeDetailPage({
   const { id } = await params;
   await requireHrmPage();
   const dict = await getDict();
-  const employee = await db.employee.findUnique({
-    where: { id },
-    include: {
-      user: {
-        select: { id: true, name: true, email: true, phone: true, roles: true, active: true },
-      },
-      application: { select: { id: true, name: true, jobId: true, status: true } },
-    },
-  });
-  if (!employee) notFound();
-
-  // Pre-computed date ranges (evaluated once on mount, not during render)
-  const now = new Date();
-  const attendanceSince = new Date(now.getTime() - 29 * 86400000);
-  const yearStart = new Date(Date.UTC(now.getUTCFullYear(), 0, 1));
-
-  const [attendance, leaveRequests, takenThisYear, payslips, reviews, documents] =
-    await Promise.all([
-      db.attendanceRecord.findMany({
-        where: { employeeId: id, date: { gte: attendanceSince } },
-        orderBy: { date: "desc" },
-      }),
-      db.leaveRequest.findMany({
-        where: { employeeId: id },
-        orderBy: { startDate: "desc" },
-        take: 20,
-        include: { decidedBy: { select: { name: true } } },
-      }),
-      db.leaveRequest.groupBy({
-        by: ["type"],
-        where: {
-          employeeId: id,
-          status: "Approved",
-          startDate: { gte: yearStart },
-        },
-        _count: true,
-      }),
-      db.payslip.findMany({
-        where: { employeeId: id },
-        orderBy: { run: { month: "desc" } },
-        take: 12,
-        include: { run: { select: { month: true, currencyCode: true } } },
-      }),
-      db.performanceReview.findMany({
-        where: { employeeId: id },
-        orderBy: { periodStart: "desc" },
-        take: 10,
-        include: { reviewer: { select: { name: true } } },
-      }),
-      db.employeeDocument.findMany({
-        where: { employeeId: id },
-        orderBy: { createdAt: "desc" },
-        select: {
-          id: true,
-          kind: true,
-          title: true,
-          fileName: true,
-          mimeType: true,
-          url: true,
-          createdAt: true,
-        },
-      }),
-    ]);
+  const detail = await getEmployeeDetail(id);
+  if (!detail) notFound();
+  const { employee, attendance, leaveRequests, payslips, reviews, documents } = detail;
 
   const attendanceSummary = attendance.reduce(
     (acc, record) => {
@@ -95,7 +34,10 @@ export default async function HrmEmployeeDetailPage({
           <p className="text-xs font-semibold uppercase tracking-widest text-primary">HRM</p>
           <h1 className="mt-1 text-3xl font-bold tracking-tight">{employee.user.name}</h1>
           <p className="mt-1 text-sm text-muted">{employee.user.email}</p>
-          <p className="mt-1 text-sm text-muted">Roles: {employee.user.roles.map((r) => r.replace(/([a-z])([A-Z])/g, "$1 $2")).join(", ")}</p>
+          <p className="mt-1 text-sm text-muted">
+            Roles:{" "}
+            {employee.user.roles.map((r) => r.replace(/([a-z])([A-Z])/g, "$1 $2")).join(", ")}
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Link href="/hrm/employees" className="btn-outline">
@@ -115,7 +57,9 @@ export default async function HrmEmployeeDetailPage({
             <p className="text-sm text-muted">Phone</p>
             <p className="mt-1 truncate">{employee.user.phone ?? "No phone"}</p>
             <p className="text-sm font-medium">Roles</p>
-            <p className="mt-1">{employee.user.roles.map((r) => r.replace(/([a-z])([A-Z])/g, "$1 $2")).join(", ")}</p>
+            <p className="mt-1">
+              {employee.user.roles.map((r) => r.replace(/([a-z])([A-Z])/g, "$1 $2")).join(", ")}
+            </p>
           </div>
         </section>
 
@@ -132,8 +76,8 @@ export default async function HrmEmployeeDetailPage({
             <p className="mt-1">
               <StatusBadge status={employee.status ?? "Active"} />
             </p>
-<p className="text-sm font-medium">Join date</p>
-<p className="mt-1">{employee.joinDate?.toString().substring(0, 10) ?? "—"}</p>
+            <p className="text-sm font-medium">Join date</p>
+            <p className="mt-1">{employee.joinDate?.toString().substring(0, 10) ?? "—"}</p>
           </div>
         </section>
       </div>
@@ -149,10 +93,12 @@ export default async function HrmEmployeeDetailPage({
               <ul className="divide-y divide-border">
                 {attendance.map((record) => (
                   <li key={record.id} className="py-2">
-<p className="font-medium">{record.date.toLocaleDateString()}</p>
-<p className="text-xs text-muted">
-  {record.status}: {record.checkInAt ? record.checkInAt.toLocaleTimeString() : "—"} — {record.checkOutAt ? record.checkOutAt.toLocaleTimeString() : "—"}
-</p>
+                    <p className="font-medium">{record.date.toLocaleDateString()}</p>
+                    <p className="text-xs text-muted">
+                      {record.status}:{" "}
+                      {record.checkInAt ? record.checkInAt.toLocaleTimeString() : "—"} —{" "}
+                      {record.checkOutAt ? record.checkOutAt.toLocaleTimeString() : "—"}
+                    </p>
                   </li>
                 ))}
               </ul>
@@ -170,7 +116,8 @@ export default async function HrmEmployeeDetailPage({
               <li key={request.id} className="py-2">
                 <p className="font-medium">{request.type}</p>
                 <p className="text-xs text-muted">
-                  {request.startDate.toLocaleDateString()} – {request.endDate.toLocaleDateString()} ({request.status})
+                  {request.startDate.toLocaleDateString()} – {request.endDate.toLocaleDateString()}{" "}
+                  ({request.status})
                 </p>
               </li>
             ))}
@@ -185,7 +132,9 @@ export default async function HrmEmployeeDetailPage({
           <ul className="mt-3 divide-y divide-border">
             {payslips.map((payslip) => (
               <li key={payslip.id} className="py-2">
-                <p className="font-medium">{payslip.run.month.toLocaleDateString()} {payslip.run.currencyCode}</p>
+                <p className="font-medium">
+                  {payslip.run.month.toLocaleDateString()} {payslip.run.currencyCode}
+                </p>
                 <p className="text-xs text-muted">¥ {payslip.baseSalaryCents / 100}</p>
               </li>
             ))}
@@ -198,7 +147,10 @@ export default async function HrmEmployeeDetailPage({
           <ul className="mt-3 divide-y divide-border">
             {reviews.map((review) => (
               <li key={review.id} className="py-2">
-                <p className="font-medium">Period {review.periodStart.toLocaleDateString()} – {review.periodEnd.toLocaleDateString()}</p>
+                <p className="font-medium">
+                  Period {review.periodStart.toLocaleDateString()} –{" "}
+                  {review.periodEnd.toLocaleDateString()}
+                </p>
                 <p className="text-xs text-muted">Rating: {review.rating}/5</p>
               </li>
             ))}
@@ -214,11 +166,18 @@ export default async function HrmEmployeeDetailPage({
             <li key={doc.id} className="py-2">
               <p className="font-medium">{doc.title}</p>
               <p className="text-xs text-muted">{doc.kind}</p>
-              {doc.url && <a href={doc.url} className="text-primary underline">Open</a>}
+              {doc.url && (
+                <a href={doc.url} className="text-primary underline">
+                  Open
+                </a>
+              )}
             </li>
           ))}
         </ul>
-        <Link href="/hrm/employees/${employee.id}/documents" className="mt-3 text-primary underline">
+        <Link
+          href="/hrm/employees/${employee.id}/documents"
+          className="mt-3 text-primary underline"
+        >
           + Add document
         </Link>
       </section>

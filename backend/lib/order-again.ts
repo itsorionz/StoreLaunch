@@ -1,6 +1,12 @@
 import "server-only";
 import { db } from "./db";
 
+// Lightweight read for the storefront header badge: how many orders has this
+// customer placed. Scoped to the owning user.
+export async function getCustomerOrderCount(userId: string): Promise<number> {
+  return db.order.count({ where: { userId } });
+}
+
 export async function restoreOrderItems(userId: string, orderId: string) {
   return db.$transaction(async (tx) => {
     const order = await tx.order.findFirst({

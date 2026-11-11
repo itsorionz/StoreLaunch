@@ -1,6 +1,6 @@
 "use server";
 
-import { AddressTypes, Genders } from "@backend/lib/enums.mjs";
+import { AddressTypes, ContactChannel, Genders } from "@backend/lib/enums.mjs";
 import {
   personName,
   phoneNumber,
@@ -20,7 +20,6 @@ import { getCurrentUser } from "../lib/session";
 import { DELIVERY_ADDR_COOKIE } from "../lib/addresses";
 import { prepareProfilePhoto } from "../lib/profile-photo";
 import { randomUUID } from "node:crypto";
-import { ContactChannel } from "@backend/generated/prisma/client";
 import {
   confirmContactVerification,
   requestContactVerification,
@@ -28,6 +27,9 @@ import {
 import { emailAddress } from "../lib/form-validation";
 import { sendEmail } from "../lib/mail";
 import { sendSms } from "../lib/sms";
+import { logger } from "../lib/logger";
+
+const log = logger.child({ scope: "action:account" });
 
 export type AccountActionResult = {
   ok: boolean;
@@ -181,6 +183,7 @@ export async function updateProfile(
     try {
       photo = await prepareProfilePhoto(upload);
     } catch (error) {
+      log.warn("updateProfile photo rejected", { error, userId: user.id });
       return {
         ok: false,
         fieldErrors: {
@@ -253,7 +256,7 @@ export async function saveAddress(
 
   const saved = await db.$transaction(async (tx) => {
     // Serialize changes to this user's default address, including concurrent edits.
-    await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${user.id} FOR UPDATE`;
+    await tx.$queryRaw`SELECT id FROM "Users" WHERE id = ${user.id} FOR UPDATE`;
     if (d.id && !(await tx.address.findFirst({ where: { id: d.id, userId: user.id } })))
       return false;
     if (d.isDefault)
@@ -283,7 +286,7 @@ export async function setDefaultAddress(addressId: string): Promise<AccountActio
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "Sign in first" };
   const saved = await db.$transaction(async (tx) => {
-    await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${user.id} FOR UPDATE`;
+    await tx.$queryRaw`SELECT id FROM "Users" WHERE id = ${user.id} FOR UPDATE`;
     if (!(await tx.address.findFirst({ where: { id: addressId, userId: user.id } }))) return false;
     await tx.address.updateMany({ where: { userId: user.id }, data: { isDefault: false } });
     await tx.address.update({ where: { id: addressId }, data: { isDefault: true } });

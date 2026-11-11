@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { connection } from "next/server";
-import { db } from "@backend/lib/db";
+import {
+  listActiveDeliveryCompaniesWithProviderKey,
+  listDispatchManifests,
+  listPackedOrdersReadyForDispatch,
+} from "@backend/lib/admin-orders-queries";
 import { bdDayKey } from "@backend/lib/admin-dashboard-periods";
 import { DispatchBoard } from "@frontend/components/admin/dispatch-board";
 
@@ -12,28 +16,9 @@ export default async function DispatchPage() {
   const dayKey = bdDayKey(new Date());
 
   const [manifests, readyOrders, companies] = await Promise.all([
-    db.dispatchManifest.findMany({
-      where: { number: { endsWith: dayKey } },
-      include: {
-        deliveryCompany: { select: { id: true, name: true } },
-        _count: { select: { lines: true } },
-      },
-      orderBy: { createdAt: "desc" },
-    }),
-    db.order.findMany({
-      where: { status: "Packed", shipment: null },
-      include: {
-        zone: { select: { name: true, mode: true } },
-        deliveryCompany: { select: { id: true, name: true } },
-      },
-      orderBy: { createdAt: "asc" },
-      take: 100,
-    }),
-    db.deliveryCompany.findMany({
-      where: { active: true },
-      select: { id: true, name: true, providerKey: true },
-      orderBy: { name: "asc" },
-    }),
+    listDispatchManifests(dayKey),
+    listPackedOrdersReadyForDispatch(),
+    listActiveDeliveryCompaniesWithProviderKey(),
   ]);
 
   return (

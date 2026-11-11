@@ -1,13 +1,14 @@
-import { StoreChrome } from "@frontend/components/layout/store-chrome";
-import { Roles } from "@backend/lib/enums.mjs";
+import type { ReactNode } from "react";
 import { Suspense } from "react";
-import { redirect } from "next/navigation";
-import { connection } from "next/server";
-import { getCurrentUser } from "@backend/lib/session";
 import { StoreHeader } from "@frontend/components/layout/header";
 import { StoreFooter } from "@frontend/components/layout/footer";
+import { StoreChrome } from "@frontend/components/layout/store-chrome";
 
 async function RiderLock() {
+  const { connection } = await import("next/server");
+  const { getCurrentUser } = await import("@backend/lib/session");
+  const { Roles } = await import("@backend/lib/enums.mjs");
+  const { redirect } = await import("next/navigation");
   await connection();
   const user = await getCurrentUser();
   if (user?.role === Roles.Rider) redirect("/rider");
@@ -15,13 +16,23 @@ async function RiderLock() {
 }
 
 async function ServiceLock() {
+  const { connection } = await import("next/server");
+  const { getCurrentUser } = await import("@backend/lib/session");
+  const { Roles } = await import("@backend/lib/enums.mjs");
+  const { redirect } = await import("next/navigation");
   await connection();
   const user = await getCurrentUser();
   if (user?.role === Roles.Support) redirect("/support");
   return null;
 }
 
-export default function StoreLayout({ children }: { children: React.ReactNode }) {
+export default function StoreLayout({
+  children,
+  authModal,
+}: {
+  children: ReactNode;
+  authModal: ReactNode;
+}) {
   return (
     <>
       <Suspense fallback={null}>
@@ -48,6 +59,7 @@ export default function StoreLayout({ children }: { children: React.ReactNode })
           <StoreFooter />
         </Suspense>
       </StoreChrome>
+      {authModal}
     </>
   );
 }

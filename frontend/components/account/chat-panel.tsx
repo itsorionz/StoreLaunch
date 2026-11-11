@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@backend/lib/session";
-import { db } from "@backend/lib/db";
-import { listCustomerConversations } from "@backend/lib/chat";
+import { findCustomerChatOrder, listCustomerConversations } from "@backend/lib/chat";
 import { Roles } from "@backend/lib/enums.mjs";
 import { getDict } from "@frontend/i18n/dict";
 import { openChat, sendChatMessage } from "@backend/actions/chat";
@@ -18,12 +17,7 @@ export async function ChatPanel({ searchParams }: { searchParams: Promise<{ orde
 
   // Arriving from an order page (?order=<number>) links the thread to it; only
   // orders the signed-in customer owns are accepted.
-  const order = params.order
-    ? await db.order.findFirst({
-        where: { number: params.order, userId: user.id },
-        select: { id: true, number: true },
-      })
-    : null;
+  const order = params.order ? await findCustomerChatOrder(user.id, params.order) : null;
 
   const { open, closed } = await listCustomerConversations({ id: user.id, role: user.role });
 

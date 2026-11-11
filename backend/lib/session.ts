@@ -11,6 +11,7 @@ export type CurrentUser = {
   role:
     | typeof Roles.Customer
     | typeof Roles.Admin
+    | typeof Roles.SuperAdmin
     | typeof Roles.Rider
     | typeof Roles.Support
     | typeof Roles.Warehouse
@@ -71,7 +72,7 @@ export async function getRider(): Promise<RiderContext | null> {
 
 export async function getService(): Promise<CurrentUser | null> {
   const user = await getCurrentUser();
-  if (!user || user.role !== Roles.Support) return null;
+  if (!user || (user.role !== Roles.Support && !isAdminRole(user.role))) return null;
   return user;
 }
 
@@ -85,6 +86,19 @@ export async function requireAdminPage(): Promise<CurrentUser> {
   const user = await getCurrentUser();
   if (!user) redirect("/login?callbackUrl=/admin");
   if (!isAdminRole(user.role)) redirect("/");
+  return user;
+}
+
+export async function requireSuperAdminPage(): Promise<CurrentUser> {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login?callbackUrl=/admin");
+  if (user.role !== Roles.SuperAdmin) redirect("/");
+  return user;
+}
+
+export async function requireSuperAdmin(): Promise<CurrentUser> {
+  const user = await getCurrentUser();
+  if (!user || user.role !== Roles.SuperAdmin) throw new Error("Unauthorized");
   return user;
 }
 
@@ -108,7 +122,7 @@ export async function requireHrmPage(): Promise<CurrentUser> {
 export async function requireServicePage(): Promise<CurrentUser> {
   const user = await getCurrentUser();
   if (!user) redirect("/login?callbackUrl=/support");
-  if (user.role !== Roles.Support) redirect("/");
+  if (user.role !== Roles.Support && !isAdminRole(user.role)) redirect("/");
   return user;
 }
 
@@ -122,7 +136,7 @@ export async function getSalesPage(): Promise<CurrentUser | null> {
 export async function requireSalesPage(): Promise<CurrentUser> {
   const user = await getCurrentUser();
   if (!user) redirect("/login?callbackUrl=/sales");
-  if (user.role !== Roles.Sales) redirect("/");
+  if (user.role !== Roles.Sales && !isAdminRole(user.role)) redirect("/");
   return user;
 }
 
@@ -136,7 +150,7 @@ export async function getWarehousePage(): Promise<CurrentUser | null> {
 export async function requireWarehousePage(): Promise<CurrentUser> {
   const user = await getCurrentUser();
   if (!user) redirect("/login?callbackUrl=/warehouse");
-  if (user.role !== Roles.Warehouse) redirect("/");
+  if (user.role !== Roles.Warehouse && !isAdminRole(user.role)) redirect("/");
   return user;
 }
 
@@ -144,7 +158,7 @@ export async function requireWarehousePage(): Promise<CurrentUser> {
 // Admin and Warehouse per the permission matrix in docs/sales-representative-plan.md.
 export async function requireOpsEditor(): Promise<CurrentUser> {
   const user = await getCurrentUser();
-  if (!user || (user.role !== Roles.Admin && user.role !== Roles.Warehouse))
+  if (!user || (user.role !== Roles.Admin && user.role !== Roles.Warehouse && user.role !== Roles.SuperAdmin))
     throw new Error("Unauthorized");
   return user;
 }

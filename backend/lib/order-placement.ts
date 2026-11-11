@@ -38,6 +38,7 @@ type Placement = {
   zoneId?: string;
   zoneRateCents?: number;
   zoneCodFeeCents?: number;
+  idempotencyKey?: string;
 };
 
 export async function nextOrderNumber(tx: Prisma.TransactionClient): Promise<string> {
@@ -73,6 +74,14 @@ export async function createReservedOrder(input: Placement) {
   const walletPaidCents = Math.min(input.walletCents, totalCents);
 
   return db.$transaction(async (tx) => {
+    // **IDEMPOTENCY**: Check if an order with this idempotency key already exists
+    const existingOrder = input.idempotencyKey
+      ? await tx.order.findFirst({ where: { idempotencyKey: input.idempotencyKey } })
+      : null;
+    if (existingOrder) {
+      // Return the existing order (status may have changed, but data is consistent)
+      return existingOrder;
+    }
     const orderNumber = input.number ?? (await nextOrderNumber(tx));
     await tx.$queryRaw`SELECT pg_advisory_xact_lock_shared(hashtext('store-currency'))::text`;
     const store = await tx.storeSettings.findUnique({
@@ -182,6 +191,7 @@ export async function createReservedOrder(input: Placement) {
     const order = await tx.order.create({
       data: {
         number: orderNumber,
+        idempotencyKey: input.idempotencyKey ?? orderNumber, // Use order number as fallback key
         userId: input.userId,
         status: fullyPaid ? OrderStatuses.Paid : OrderStatuses.Pending,
         subtotalCents,

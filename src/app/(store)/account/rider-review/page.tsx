@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@backend/lib/session";
-import { db } from "@backend/lib/db";
+import { listAccountRiderReviewOrders } from "@backend/lib/account-queries";
 import { getDict } from "@frontend/i18n/dict";
 import { formatPrice } from "@backend/lib/money";
 import { RiderReviewForm } from "@frontend/components/account/rider-review-form";
@@ -23,24 +23,7 @@ async function RiderReviewContent() {
   const user = await getCurrentUser();
   if (!user) redirect("/login?callbackUrl=/account/rider-review");
 
-  const [orders, dict] = await Promise.all([
-    db.order.findMany({
-      where: { userId: user.id },
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        number: true,
-        status: true,
-        createdAt: true,
-        rider: { select: { name: true, phone: true } },
-        riderReview: { select: { rating: true, body: true, createdAt: true } },
-        items: {
-          select: { name: true, slug: true, imageUrl: true, priceCents: true, quantity: true },
-        },
-      },
-    }),
-    getDict(),
-  ]);
+  const [orders, dict] = await Promise.all([listAccountRiderReviewOrders(user.id), getDict()]);
 
   const purchased = orders.filter((o) => o.items.length > 0);
 

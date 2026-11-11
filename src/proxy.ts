@@ -3,7 +3,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import { decodeProtectedHeader, jwtDecrypt } from "jose";
 import { hkdfSync } from "node:crypto";
 import { verifyActivationToken, signActivationToken } from "@backend/lib/license";
-import { db } from "@backend/lib/db";
+import { isSetupCompleted, performSetup } from "@backend/lib/setup";
+import { logger } from "@backend/lib/logger";
+
+const log = logger.child({ scope: "proxy" });
 
 const ACTIVATION_COOKIE = "sl_act";
 const ACTIVATION_DAYS = 365;
@@ -35,7 +38,11 @@ async function sessionRole(request: NextRequest): Promise<string | null> {
       );
       const { payload } = await jwtDecrypt(raw, key);
       if (typeof payload.role === "string") return normalizeRole(payload.role);
-    } catch {
+    } catch (error) {
+      // An undecryptable session cookie is normal (stale/rotated secret), but
+      // it is the only signal when AUTH_SECRET changes and everyone is
+      // silently signed out — logged at debug to stay out of the way.
+      log.debug("session cookie could not be decoded", { cookie: name, error });
       continue;
     }
   }
@@ -68,9 +75,46 @@ export async function proxy(request: NextRequest) {
   const token = request.cookies.get(ACTIVATION_COOKIE)?.value;
   const activated = token ? await verifyActivationToken(token) : false;
 
+  // Dev auto-activation: in development, if DEV_LICENSE_KEY is set and setup is not
+  // completed, auto-complete setup with the dev key so the dev environment just works.
+  if (
+    process.env.NODE_ENV === "development" &&
+    process.env.DEV_LICENSE_KEY &&
+    !activated &&
+    !isPublic(pathname)
+  ) {
+    const setupCompleted = await isSetupCompleted();
+    if (!setupCompleted) {
+      try {
+        await performSetup({
+          licenseKey: process.env.DEV_LICENSE_KEY,
+          adminName: "Platform Owner",
+          email: "owner@store.local",
+          password: "owner123",
+          storeName: "StoreLaunch Platform",
+          currencySymbol: "৳",
+          currencyCode: "BDT",
+          roles: ["SuperAdmin", "Customer"],
+        });
+      } catch {
+        // Setup may have been completed concurrently; ignore and fall through.
+      }
+    }
+    const fresh = await signActivationToken(Date.now() + ACTIVATION_DAYS * 86400_000);
+    const response = NextResponse.next();
+    response.cookies.set(ACTIVATION_COOKIE, fresh, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: false,
+      path: "/",
+      maxAge: ACTIVATION_DAYS * 86400,
+    });
+    return response;
+  }
+
   if (!activated && !isPublic(pathname)) {
-    const settings = await db.storeSettings.findFirst({ select: { setupCompletedAt: true } });
-    if (settings?.setupCompletedAt) {
+    const setupCompleted = await isSetupCompleted();
+    if (setupCompleted) {
       const fresh = await signActivationToken(Date.now() + ACTIVATION_DAYS * 86400_000);
       const response = NextResponse.next();
       response.cookies.set(ACTIVATION_COOKIE, fresh, {

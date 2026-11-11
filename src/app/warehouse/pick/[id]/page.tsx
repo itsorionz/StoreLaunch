@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireWarehousePage } from "@backend/lib/session";
-import { db } from "@backend/lib/db";
+import { getPickingPickList } from "@backend/lib/warehouse-queries";
 import { MarkPickedButton, PickLineForm } from "@frontend/components/warehouse/pick-controls";
 
 export const metadata = { title: "Pick list" };
@@ -13,16 +13,7 @@ export default async function WarehousePickDetailPage({
 }) {
   await requireWarehousePage();
   const { id } = await params;
-  const pickList = await db.pickList.findUnique({
-    where: { id },
-    include: {
-      order: { select: { number: true, city: true } },
-      lines: {
-        include: { orderItem: { include: { product: { select: { sku: true, barcode: true } } } } },
-        orderBy: { id: "asc" },
-      },
-    },
-  });
+  const pickList = await getPickingPickList(id);
   if (!pickList || pickList.status !== "Picking") notFound();
 
   const allPicked = pickList.lines.every((line) => line.qtyPicked + line.shortPickQty > 0);

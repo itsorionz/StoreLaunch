@@ -1,4 +1,7 @@
-import { db } from "@backend/lib/db";
+import {
+  listActiveWarehouses,
+  listRecentStockTransfers,
+} from "@backend/lib/admin-logistics-queries";
 import { WarehouseTransferForm } from "@frontend/components/admin/warehouse-transfer-form";
 import { TransferQueue } from "@frontend/components/admin/transfer-queue";
 
@@ -6,20 +9,8 @@ export const metadata = { title: "Warehouse transfer" };
 
 export default async function WarehouseTransferPage() {
   const [warehouses, transfers] = await Promise.all([
-    db.warehouse.findMany({
-      where: { active: true },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true, code: true },
-    }),
-    db.stockTransfer.findMany({
-      orderBy: { requestedAt: "desc" },
-      take: 50,
-      include: {
-        product: { select: { name: true, sku: true } },
-        fromWarehouse: { select: { name: true } },
-        toWarehouse: { select: { name: true } },
-      },
-    }),
+    listActiveWarehouses(),
+    listRecentStockTransfers(),
   ]);
   const nameById = new Map(warehouses.map((w) => [w.id, w.name]));
 

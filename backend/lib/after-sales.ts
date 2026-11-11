@@ -20,6 +20,9 @@ import { PRE_DISPATCH_STATUSES } from "./order-status";
 import { creditWalletBalance } from "./wallet-balance";
 import { applyWarehouseStockDelta } from "./stock-ledger";
 import { recordOrderEvent, type OrderActor } from "./order-events";
+import { logger } from "./logger";
+
+const log = logger.child({ scope: "after-sales" });
 
 export type AfterSalesResult = {
   ok: boolean;
@@ -673,17 +676,33 @@ export async function inspectAndResolveAfterSales(
       return { ok: true, requestId: fresh.id };
     })
     .catch((error: unknown) => {
-      if (error instanceof Error && error.message === "WALLET_BALANCE_LIMIT")
+      if (error instanceof Error && error.message === "WALLET_BALANCE_LIMIT") {
+        log.warn("inspectAndResolveAfterSales rejected", {
+          code: "WALLET_BALANCE_LIMIT",
+          requestId: request.id,
+          orderId: request.orderId,
+        });
         return {
           ok: false,
           error:
             "Return was not resolved because the wallet balance reached its limit. Contact finance to issue the original tender refund",
         };
-      if (error instanceof Error && error.message.startsWith("REPLACEMENT_STOCK_UNAVAILABLE:"))
+      }
+      if (error instanceof Error && error.message.startsWith("REPLACEMENT_STOCK_UNAVAILABLE:")) {
+        log.warn("inspectAndResolveAfterSales rejected", {
+          code: "REPLACEMENT_STOCK_UNAVAILABLE",
+          requestId: request.id,
+        });
         return {
           ok: false,
           error: `Replacement stock is unavailable for ${error.message.slice("REPLACEMENT_STOCK_UNAVAILABLE:".length)}. The request is unchanged`,
         };
+      }
+      log.error("inspectAndResolveAfterSales failed", {
+        error,
+        requestId: request.id,
+        orderId: request.orderId,
+      });
       return Promise.reject(error);
     });
 }
@@ -880,15 +899,18 @@ export async function resolveCancellation(
       });
       return { ok: true, requestId: fresh.id };
     })
-    .catch((error: unknown) =>
-      error instanceof Error && error.message === "WALLET_BALANCE_LIMIT"
-        ? {
-            ok: false,
-            error:
-              "Cancellation was not applied because the refund would exceed the supported wallet balance",
-          }
-        : Promise.reject(error),
-    );
+    .catch((error: unknown) => {
+      if (error instanceof Error && error.message === "WALLET_BALANCE_LIMIT") {
+        log.warn("resolveCancellation rejected", { code: "WALLET_BALANCE_LIMIT", requestId });
+        return {
+          ok: false,
+          error:
+            "Cancellation was not applied because the refund would exceed the supported wallet balance",
+        };
+      }
+      log.error("resolveCancellation failed", { error, requestId });
+      return Promise.reject(error);
+    });
 }
 
 export function afterSalesActor(id: string, name: string): OrderActor {

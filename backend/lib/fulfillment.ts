@@ -12,6 +12,15 @@ import type { SslcommerzValidation } from "./sslcommerz";
 
 type PaymentResult = { ok: true; alreadyPaid?: boolean } | { ok: false; error: string };
 
+/**
+ * Resolves a provider transaction id (which is the order number) to the order
+ * that the payment boundary operates on. Returns the full row so callers keep
+ * today's behavior; the heavy fulfillment work re-fetches under lock.
+ */
+export async function getOrderByNumber(number: string) {
+  return db.order.findUnique({ where: { number } });
+}
+
 /** Only provider-validated data may enter this server-only payment boundary. */
 export async function fulfillPaidOrder(
   orderId: string,

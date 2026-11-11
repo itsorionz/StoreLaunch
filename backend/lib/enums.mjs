@@ -31,6 +31,7 @@ export {
 } from "../generated/prisma/enums.ts";
 export { CodSettlementMethod as CodSettlementMethods } from "../generated/prisma/enums.ts";
 export { InventoryAdjustmentReason as InventoryAdjustmentReasons } from "../generated/prisma/enums.ts";
+export { ContactChannel } from "../generated/prisma/enums.ts";
 export {
   EmploymentType as EmploymentTypes,
   EmployeeStatus as EmployeeStatuses,

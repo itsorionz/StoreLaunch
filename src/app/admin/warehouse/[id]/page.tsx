@@ -1,14 +1,10 @@
-import { db } from "@backend/lib/db";
+import { getWarehouseById, listWarehouseStockLevels } from "@backend/lib/admin-logistics-queries";
 
 export default async function WarehouseDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const [warehouse, stockLevels] = await Promise.all([
-    db.warehouse.findUnique({ where: { id } }),
-    db.stockLevel.findMany({
-      where: { warehouseId: id },
-      include: { product: true },
-      orderBy: { product: { name: "asc" } },
-    }),
+    getWarehouseById(id),
+    listWarehouseStockLevels(id),
   ]);
 
   if (!warehouse) {

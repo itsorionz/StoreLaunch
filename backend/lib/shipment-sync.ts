@@ -5,6 +5,9 @@ import { db } from "./db";
 import { recordOrderEvent } from "./order-events";
 import { OrderEventTypes } from "@backend/lib/enums.mjs";
 import type { ShipmentStatus } from "@backend/generated/prisma/client";
+import { logger } from "./logger";
+
+const log = logger.child({ scope: "shipment-sync" });
 
 /**
  * Automated carrier status sync (§5.5).
@@ -75,7 +78,20 @@ export async function syncShipmentRecord(
     tracking = await adapter.getTracking(shipment.trackingNumber);
   } catch (error) {
     // API problems never crash the batch — the shipment retries next run.
-    if (!(error instanceof CourierApiError)) throw error;
+    if (!(error instanceof CourierApiError)) {
+      log.error("tracking fetch failed", {
+        error,
+        shipmentId: shipment.id,
+        trackingNumber: shipment.trackingNumber,
+      });
+      throw error;
+    }
+    log.warn("tracking fetch rejected", {
+      adapter: adapter.name,
+      code: error.code,
+      shipmentId: shipment.id,
+      trackingNumber: shipment.trackingNumber,
+    });
     return { ...base, ok: false, error: `${adapter.name} sync failed (${error.code})` };
   }
 

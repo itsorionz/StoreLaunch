@@ -61,7 +61,7 @@ export function TicketNewForm({ prefill }: { prefill: TicketPrefill }) {
       action={formAction}
       errors={state?.fieldErrors}
       result={state}
-      successToast={false}
+      successMessage="Ticket created."
       noValidate
       className="space-y-4"
     >

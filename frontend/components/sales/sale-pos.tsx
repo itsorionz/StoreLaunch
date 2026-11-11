@@ -9,6 +9,8 @@ import {
   type ProductSearchHit,
   type SalesActionResult,
 } from "@backend/actions/sales";
+import { ActionResultToast } from "@frontend/components/ui/validated-form";
+import { useToast } from "@frontend/components/ui/toast";
 
 type CartLine = { product: ProductSearchHit; quantity: number };
 
@@ -17,6 +19,7 @@ export function SalePos({
 }: {
   zones: Array<{ id: string; name: string; rateCents: number }>;
 }) {
+  const toast = useToast();
   const [state, formAction, pending] = useActionState<SalesActionResult | null, FormData>(
     createSalesOrderAction,
     null,
@@ -60,11 +63,16 @@ export function SalePos({
     setLocalError(null);
     const result = await findSaleCustomerByPhone(customerPhone);
     if (result.found) {
-      setCustomerFound(`${result.name} — ${result.orderCount ?? 0} previous orders`);
+      const message = `${result.name} — ${result.orderCount ?? 0} previous orders`;
+      setCustomerFound(message);
+      toast(message);
       if (result.name) setCustomerName(result.name);
     } else {
       setCustomerFound(null);
-      setLocalError("No customer with this phone yet — they will be created as a walk-in customer");
+      const message =
+        "No customer with this phone yet — they will be created as a walk-in customer";
+      setLocalError(message);
+      toast(message, "warning");
     }
   }
 
@@ -107,6 +115,7 @@ export function SalePos({
   if (state?.ok && state.orderNumber)
     return (
       <div className="mx-auto max-w-lg rounded-xl border border-border bg-surface p-8 text-center">
+        <ActionResultToast result={state} successMessage={`Sale ${state.orderNumber} recorded.`} />
         <p className="text-sm font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
           Sale complete
         </p>
@@ -131,6 +140,7 @@ export function SalePos({
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
+      <ActionResultToast result={state} successMessage="Sale recorded." />
       <div className="space-y-6">
         <section className="rounded-xl border border-border bg-surface p-4">
           <h2 className="text-sm font-bold">Customer</h2>

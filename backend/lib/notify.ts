@@ -2,6 +2,9 @@ import { InboxCategories } from "@backend/lib/enums.mjs";
 import { db } from "./db";
 import { logEmail } from "./mail";
 import { sendSms } from "./sms";
+import { logger } from "./logger";
+
+const log = logger.child({ scope: "notify" });
 
 export async function notifyBackInStock(productId: string): Promise<void> {
   try {
@@ -46,8 +49,10 @@ export async function notifyBackInStock(productId: string): Promise<void> {
       where: { id: { in: accepted } },
       data: { notifiedAt: new Date() },
     });
-    console.log(`[notify] back-in-stock SMS accepted for ${accepted.length} subscriber(s)`);
+    log.debug("back-in-stock notifications sent", { productId, accepted: accepted.length });
   } catch (e) {
-    console.error("[notify] notifyBackInStock failed", e);
+    // Never rethrown — a notification outage must not break the request that
+    // triggered it, so this line is the only trace of the failure.
+    log.error("notifyBackInStock failed", { error: e, productId });
   }
 }

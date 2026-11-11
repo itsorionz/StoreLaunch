@@ -1,9 +1,8 @@
 import Link from "next/link";
+import { unstable_noStore } from "next/cache";
 import { requireHrmPage } from "@backend/lib/session";
-import { db } from "@backend/lib/db";
-import { getDict } from "@frontend/i18n/dict";
+import { searchStaffAccounts } from "@backend/lib/hrm";
 import { StatusBadge } from "@frontend/components/admin/admin-ui";
-import { Roles } from "@backend/lib/enums.mjs";
 
 export const metadata = { title: "Employees — HRM" };
 
@@ -13,33 +12,10 @@ export default async function HrmEmployeesPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   await requireHrmPage();
-  const dict = await getDict();
+  unstable_noStore();
   const parsed = searchParams instanceof Promise ? await searchParams : searchParams;
-  const filters = parsed.q
-    ? { q: parsed.q, role: parsed.role, status: parsed.status }
-    : { q: "", role: "", status: "" };
 
-  const where = {
-    ...(filters.role ? { roles: { has: filters.role as "Customer" | "Admin" | "Rider" | "Support" | "Warehouse" | "Sales" | "Manager" } } : {}),
-    ...(filters.status ? { active: filters.status === "Active" } : {}),
-    ...(filters.q
-      ? {
-          OR: ["name", "email", "phone"].map((field) => ({
-            [field]: { contains: filters.q, mode: "insensitive" as const },
-          })),
-        }
-      : {}),
-  };
-
-  const [users, count] = await Promise.all([
-    db.user.findMany({
-      where,
-      orderBy: [{ createdAt: "desc" }, { id: "asc" }],
-      take: 200,
-      select: { id: true, name: true, email: true, phone: true, roles: true, active: true },
-    }),
-    db.user.count({ where }),
-  ]);
+  const { users } = await searchStaffAccounts(parsed.q, parsed.role, parsed.status);
 
   return (
     <div className="space-y-5">
@@ -75,11 +51,11 @@ export default async function HrmEmployeesPage({
                   <p>{user.email}</p>
                   <p className="text-xs text-muted">{user.phone ?? "No phone"}</p>
                 </td>
-                <td className="px-4 py-3">{user.roles.map((r) => r.replace(/([a-z])([A-Z])/g, "$1 $2")).join(", ")}</td>
                 <td className="px-4 py-3">
-                  <StatusBadge
-                    status={user.active ? "Active" : "Inactive"}
-                  />
+                  {user.roles.map((r) => r.replace(/([a-z])([A-Z])/g, "$1 $2")).join(", ")}
+                </td>
+                <td className="px-4 py-3">
+                  <StatusBadge status={user.active ? "Active" : "Inactive"} />
                 </td>
                 <td className="px-4 py-3">
                   <Link href={`/hrm/employees/${user.id}`} className="text-primary underline">

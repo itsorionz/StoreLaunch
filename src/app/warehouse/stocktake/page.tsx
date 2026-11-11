@@ -1,5 +1,5 @@
 import { requireWarehousePage } from "@backend/lib/session";
-import { db } from "@backend/lib/db";
+import { listActiveWarehouses, listRecentStockMovements } from "@backend/lib/warehouse-queries";
 import { StocktakeForm } from "@frontend/components/warehouse/stocktake-form";
 
 export const metadata = { title: "Stocktake" };
@@ -12,24 +12,13 @@ export default async function WarehouseStocktakePage({
   await requireWarehousePage();
   const { warehouse } = await searchParams;
 
-  const warehouses = await db.warehouse.findMany({
-    where: { active: true },
-    orderBy: [{ isDefault: "desc" }, { name: "asc" }],
-    select: { id: true, name: true, isDefault: true },
-  });
+  const warehouses = await listActiveWarehouses();
   const selected =
     warehouses.find((w) => w.id === warehouse) ??
     warehouses.find((w) => w.isDefault) ??
     warehouses[0];
 
-  const movements = selected
-    ? await db.stockMovement.findMany({
-        where: { warehouseId: selected.id },
-        include: { product: { select: { name: true, sku: true } } },
-        orderBy: { createdAt: "desc" },
-        take: 30,
-      })
-    : [];
+  const movements = selected ? await listRecentStockMovements(selected.id) : [];
 
   return (
     <div className="space-y-6">

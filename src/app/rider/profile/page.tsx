@@ -1,34 +1,15 @@
-import { OrderStatuses } from "@backend/lib/enums.mjs";
 import Link from "next/link";
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { getRider } from "@backend/lib/session";
-import { db } from "@backend/lib/db";
+import { getRiderProfileInfo } from "@backend/lib/rider-queries";
 import { ProfileForm } from "@frontend/components/account/profile-form";
 
 async function RiderProfile() {
   const ctx = await getRider();
   if (!ctx) redirect("/login?callbackUrl=/rider");
-  const profile = await db.user.findUnique({
-    where: { id: ctx.user.id },
-    select: {
-      name: true,
-      email: true,
-      phone: true,
-      gender: true,
-      dateOfBirth: true,
-      profilePhotoVersion: true,
-    },
-  });
+  const { profile, stats, delivered } = await getRiderProfileInfo(ctx.rider.id, ctx.user.id);
   if (!profile) redirect("/login");
-
-  const stats = await db.order.aggregate({
-    where: { riderId: ctx.rider.id },
-    _count: { id: true },
-  });
-  const delivered = await db.order.count({
-    where: { riderId: ctx.rider.id, status: OrderStatuses.Delivered },
-  });
 
   return (
     <div className="space-y-4">

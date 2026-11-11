@@ -1,7 +1,5 @@
 import type { NextRequest } from "next/server";
 
-export const revalidate = 0;
-
 export function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const id = searchParams.get("id") || "unknown";

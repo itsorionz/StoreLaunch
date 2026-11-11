@@ -1,8 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireServicePage } from "@backend/lib/session";
-import { db } from "@backend/lib/db";
-import { Roles } from "@backend/lib/enums.mjs";
+import {
+  getTicketPrefillConversation,
+  getTicketPrefillCustomer,
+  getTicketPrefillOrder,
+} from "@backend/lib/support-queries";
 import { getDict } from "@frontend/i18n/dict";
 import { TicketNewForm, type TicketPrefill } from "@frontend/components/service/ticket-new-form";
 
@@ -21,10 +24,7 @@ export default async function NewTicketPage({
   // whichever resolves first wins and carries the customer along.
   let prefill: TicketPrefill = {};
   if (params.conversationId) {
-    const conversation = await db.chatConversation.findUnique({
-      where: { id: params.conversationId },
-      include: { customer: { select: { id: true, name: true, email: true } } },
-    });
+    const conversation = await getTicketPrefillConversation(params.conversationId);
     if (!conversation) notFound();
     prefill = {
       customerId: conversation.customerId,
@@ -35,14 +35,7 @@ export default async function NewTicketPage({
       subject: conversation.subject ?? "",
     };
   } else if (params.orderId) {
-    const order = await db.order.findUnique({
-      where: { id: params.orderId },
-      select: {
-        id: true,
-        number: true,
-        user: { select: { id: true, name: true, email: true } },
-      },
-    });
+    const order = await getTicketPrefillOrder(params.orderId);
     if (!order) notFound();
     prefill = {
       customerId: order.user.id,
@@ -52,10 +45,7 @@ export default async function NewTicketPage({
       subject: `Order #${order.number}`,
     };
   } else if (params.customerId) {
-    const customer = await db.user.findFirst({
-      where: { id: params.customerId, roles: { has: Roles.Customer } },
-      select: { id: true, name: true, email: true },
-    });
+    const customer = await getTicketPrefillCustomer(params.customerId);
     if (!customer) notFound();
     prefill = {
       customerId: customer.id,

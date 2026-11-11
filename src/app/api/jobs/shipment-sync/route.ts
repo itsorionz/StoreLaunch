@@ -2,9 +2,10 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { runShipmentSyncBatch } from "@backend/lib/shipment-sync";
 import { revalidatePath } from "next/cache";
+import { withRoute } from "@backend/lib/route-logger";
 
 export const maxDuration = 300;
-export async function POST(request: NextRequest) {
+export const POST = withRoute("jobs.shipment-sync", async (request: NextRequest) => {
   const secret = process.env.SHIPMENT_SYNC_SECRET;
   if (!secret || secret.length < 32)
     return NextResponse.json({ error: "Shipment sync job is not configured" }, { status: 503 });
@@ -25,4 +26,4 @@ export async function POST(request: NextRequest) {
     },
     { headers: { "Cache-Control": "no-store" } },
   );
-}
+});

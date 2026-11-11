@@ -18,12 +18,14 @@ export function ValidatedForm({
   result,
   successMessage = "Saved successfully.",
   successToast = true,
+  validationToast = false,
   ...props
 }: ComponentProps<"form"> & {
   errors?: Errors;
   result?: unknown;
   successMessage?: string;
   successToast?: boolean;
+  validationToast?: boolean;
 }) {
   return (
     <Fields.Provider value={errors}>
@@ -32,6 +34,7 @@ export function ValidatedForm({
         errors={errors}
         successMessage={successMessage}
         successToast={successToast}
+        validationToast={validationToast}
       />
       <form {...props} />
     </Fields.Provider>
@@ -43,11 +46,13 @@ export function ActionResultToast({
   errors,
   successMessage = "Saved successfully.",
   successToast = true,
+  validationToast = false,
 }: {
   result?: unknown;
   errors?: Errors;
   successMessage?: string;
   successToast?: boolean;
+  validationToast?: boolean;
 }) {
   const toast = useToast();
   const previousResult = useRef<unknown>(null);
@@ -59,15 +64,20 @@ export function ActionResultToast({
       if (typeof result !== "object") return;
       const response = result as Record<string, unknown>;
       if (response.ok === true || response.success === true || response.sent === true) {
-        if (!successToast && response.sent !== true) return;
-        toast(
-          typeof response.message === "string"
-            ? response.message
-            : response.sent === true
-              ? "Verification code sent."
-              : successMessage,
-          "success",
-        );
+        if (successToast || response.sent === true) {
+          toast(
+            typeof response.message === "string"
+              ? response.message
+              : response.sent === true
+                ? "Verification code sent."
+                : successMessage,
+            "success",
+          );
+        }
+        // Warnings are caveats, not successes — they surface even when the
+        // success toast is suppressed for a flow with its own inline feedback.
+        const warning = firstWarning(response);
+        if (warning) toast(warning, "warning");
         return;
       }
       const fieldErrors = response.fieldErrors;
@@ -77,22 +87,42 @@ export function ActionResultToast({
               .flat()
               .find((message) => typeof message === "string")
           : undefined;
-      const error =
-        (typeof response.error === "string" && response.error) ||
-        (response.ok === false && typeof response.message === "string" && response.message) ||
-        (typeof firstFieldError === "string" && firstFieldError);
+      const hasFieldErrors = typeof firstFieldError === "string";
+      const error = hasFieldErrors
+        ? validationToast && typeof firstFieldError === "string" && firstFieldError
+        : (typeof response.error === "string" && response.error) ||
+          (response.ok === false && typeof response.message === "string" && response.message);
       if (error) toast(error, "error");
       return;
     }
 
-    if (result == null && errors && errors !== previousErrors.current) {
+    if (validationToast && result == null && errors && errors !== previousErrors.current) {
       const firstFieldError = Object.values(errors).flat().find(Boolean);
       if (firstFieldError) toast(firstFieldError, "error");
     }
     previousErrors.current = errors;
-  }, [errors, result, successMessage, successToast, toast]);
+  }, [errors, result, successMessage, successToast, toast, validationToast]);
 
   return null;
+}
+
+/**
+ * Extracts a user-facing warning from an action result:
+ * `warning?: string`, or up to two entries of `warnings?: string[]`.
+ * Returns undefined when there is nothing to warn about.
+ */
+function firstWarning(response: Record<string, unknown>): string | undefined {
+  if (typeof response.warning === "string" && response.warning.trim())
+    return response.warning.trim();
+  const warnings = response.warnings;
+  if (Array.isArray(warnings)) {
+    const list = warnings.filter(
+      (entry): entry is string => typeof entry === "string" && entry.trim().length > 0,
+    );
+    if (list.length)
+      return list.slice(0, 2).join(" · ") + (list.length > 2 ? ` (+${list.length - 2} more)` : "");
+  }
+  return undefined;
 }
 
 function useField(name?: string, hidden = false) {

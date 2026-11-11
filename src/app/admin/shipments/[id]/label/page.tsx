@@ -1,55 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { db } from "@backend/lib/db";
+import { getShipmentForLabel } from "@backend/lib/admin-orders-queries";
 import { getStoreSettings } from "@backend/lib/settings";
-import { encodeCode39 } from "@backend/lib/barcode";
 import { encodeQr } from "@backend/lib/qr";
+import { BarcodeSvg } from "@frontend/components/barcode/barcode-svg";
 import { PrintButton } from "@frontend/components/sales/print-button";
 
 export const metadata = { title: "Shipment label" };
-
-const QUIET_MODULES = 10;
-const MODULE_PX = 2;
-
-/**
- * Renders `value` as a Code 39 barcode SVG (§5.4). Bars sit on even element
- * indices (the encoder alternates bar/space starting with a bar).
- */
-function BarcodeSvg({ value, height = 72 }: { value: string; height?: number }) {
-  const encoding = encodeCode39(value);
-  if (!encoding) return null;
-
-  const quiet = QUIET_MODULES;
-  const widthModules = encoding.totalModules + quiet * 2;
-  let cursor = quiet;
-  const bars: { x: number; width: number }[] = [];
-  encoding.widths.forEach((element, index) => {
-    if (index % 2 === 0) bars.push({ x: cursor * MODULE_PX, width: element * MODULE_PX });
-    cursor += element;
-  });
-
-  return (
-    <svg
-      role="img"
-      aria-label={`Barcode ${encoding.text}`}
-      viewBox={`0 0 ${widthModules * MODULE_PX} ${height}`}
-      className="h-[72px] w-full"
-      preserveAspectRatio="xMidYMid meet"
-    >
-      <rect width={widthModules * MODULE_PX} height={height} fill="white" />
-      {bars.map((bar) => (
-        <rect
-          key={`${bar.x}-${bar.width}`}
-          x={bar.x}
-          y={0}
-          width={bar.width}
-          height={height}
-          fill="black"
-        />
-      ))}
-    </svg>
-  );
-}
 
 /**
  * Renders `value` as a QR code SVG (§5.4) with the spec's 4-module quiet
@@ -111,13 +68,7 @@ export default async function ShipmentLabelPage({
 }) {
   const { id } = await params;
   const { format: formatParam } = await searchParams;
-  const shipment = await db.shipment.findUnique({
-    where: { id },
-    include: {
-      order: { include: { items: { select: { quantity: true } } } },
-      deliveryCompany: true,
-    },
-  });
+  const shipment = await getShipmentForLabel(id);
   if (!shipment) notFound();
   const settings = await getStoreSettings();
 

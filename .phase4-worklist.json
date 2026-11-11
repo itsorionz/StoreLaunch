@@ -1,0 +1,15 @@
+{
+  "total": 0,
+  "grouped": {
+    "A-account": [],
+    "B-store": [],
+    "C-admin": [],
+    "D-hrm": [],
+    "E-rider": [],
+    "F-sales": [],
+    "G-support": [],
+    "H-warehouse": [],
+    "I-api-root": [],
+    "Z-unassigned": []
+  }
+}

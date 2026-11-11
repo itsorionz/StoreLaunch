@@ -20,7 +20,7 @@ export async function seedOperationsFixtures(db: PrismaClient) {
   }
 
   const admin = await db.user.findFirst({
-    where: { email: "admin@store.local" },
+    where: { email: "admin@store.storelaunch.com" },
     select: { id: true, name: true },
   });
   if (!admin) throw new Error("seedAdmin must run before seedOperationsFixtures.");

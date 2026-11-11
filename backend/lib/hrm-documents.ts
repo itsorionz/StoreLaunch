@@ -23,6 +23,14 @@ export const employeeDocumentSchema = z.object({
 
 export type EmployeeDocumentInput = z.infer<typeof employeeDocumentSchema>;
 
+// Read side for the admin-only document route: loads stored bytes for download.
+export async function getEmployeeDocumentBytes(id: string) {
+  return db.employeeDocument.findUnique({
+    where: { id },
+    select: { bytes: true, fileName: true, mimeType: true },
+  });
+}
+
 export async function addEmployeeDocument(
   input: EmployeeDocumentInput,
   file: FormDataEntryValue | null,

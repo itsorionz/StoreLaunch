@@ -20,7 +20,7 @@ import {
 } from "../lib/form-validation";
 
 import { revalidatePath, updateTag } from "next/cache";
-import type { Prisma } from "@backend/generated/prisma/client";
+import type { Prisma, Role } from "@backend/generated/prisma/client";
 import { transitionOrder, assignOrderDelivery } from "../lib/order-lifecycle";
 import { selectCarrierForOrder } from "../lib/carrier-selection";
 import {
@@ -32,6 +32,7 @@ import { syncShipmentRecord } from "../lib/shipment-sync";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { writeFile, mkdir } from "fs/promises";
+import { generateBarcodeValue } from "../lib/barcode";
 import path from "path";
 import { randomUUID } from "node:crypto";
 import { lockCampaignPricing } from "../lib/campaign-pricing";
@@ -41,6 +42,20 @@ import { requireAdmin, requireOpsEditor } from "../lib/session";
 import { lockAccountStatus, assertRiderCanDeactivate } from "../lib/account-status";
 import { revalidateStore } from "../lib/revalidate";
 import { saveResizedBannerImage } from "../lib/upload-image";
+import { logger } from "../lib/logger";
+
+const log = logger.child({ scope: "action:admin" });
+
+/** Prisma "the record is referenced elsewhere" — maps to a friendly message. */
+function isReferencedError(error: unknown): boolean {
+  const code = (error as { code?: unknown } | null | undefined)?.code;
+  return code === "P2003" || code === "P2014";
+}
+
+/** Prisma unique-constraint violation — maps to a "already exists" message. */
+function isDuplicateError(error: unknown): boolean {
+  return (error as { code?: unknown } | null | undefined)?.code === "P2002";
+}
 
 export type PurchaseOrderStatus = "Draft" | "Sent" | "Partial" | "Received" | "Cancelled";
 
@@ -54,6 +69,8 @@ export type PickListQueueItem = Prisma.PickListGetPayload<{
 export type AdminActionResult = {
   ok: boolean;
   error?: string;
+  /** Completed with a caveat the operator should see (surfaced as a warning toast). */
+  warning?: string;
   fieldErrors?: Record<string, string[]>;
   id?: string;
   poNumber?: string;
@@ -64,12 +81,41 @@ export type AdminActionResult = {
   created?: number;
 };
 
+/** Weight/length inputs shared by the product form; blank means "not measured". */
+const optionalMeasurement = z.preprocess(
+  (value) => (value === "" ? undefined : value),
+  z.coerce
+    .number({ error: "Enter a whole number" })
+    .int("Enter a whole number")
+    .min(0, "Cannot be negative")
+    .max(1000000, "Value is too large")
+    .optional(),
+);
+
 const productSchema = z
   .object({
     id: recordId.optional(),
     name: personName,
     nameBn: z.string().trim().max(100, "Use at most 100 characters").optional().or(z.literal("")),
     slug: slugValue,
+    sku: z.string().trim().max(64, "Use at most 64 characters").optional(),
+    barcode: z
+      .string()
+      .trim()
+      .max(64, "Use at most 64 characters")
+      .refine(
+        (value) => !value || /^[0-9A-Za-z\-. $/+%]+$/.test(value),
+        "Use letters, numbers and the symbols - . $ / + %",
+      )
+      .optional(),
+    costCents: z.preprocess(
+      (value) => (value === "" ? null : value),
+      moneyAmount.optional().nullable(),
+    ),
+    weightGrams: optionalMeasurement,
+    lengthMm: optionalMeasurement,
+    widthMm: optionalMeasurement,
+    heightMm: optionalMeasurement,
     description: z.string().trim().max(10000, "Use at most 10000 characters").default(""),
     descriptionBn: z
       .string()
@@ -108,6 +154,19 @@ const productSchema = z
     message: "Enter initial stock",
   });
 
+/** Picks a random in-store EAN-13 value that no catalog product uses yet. */
+async function uniqueBarcodeValue(): Promise<string> {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const candidate = generateBarcodeValue();
+    const taken = await db.product.findFirst({
+      where: { barcode: candidate },
+      select: { id: true },
+    });
+    if (!taken) return candidate;
+  }
+  return generateBarcodeValue();
+}
+
 export async function saveProduct(
   _prev: AdminActionResult | null,
   formData: FormData,
@@ -141,6 +200,7 @@ export async function saveProduct(
       const saved = await saveUploadedImage(file);
       if (saved) uploadedPaths.push(saved);
     } catch (error) {
+      log.warn("saveProduct image rejected", { error, productId: d.id });
       return {
         ok: false,
         ...fieldFailure(
@@ -159,14 +219,34 @@ export async function saveProduct(
     : [];
   const images = [...existingImages, ...uploadedPaths].slice(0, 8);
 
+  // Barcodes are assigned automatically on upload so every product can be
+  // scanned and printed without extra data entry. A typed barcode wins, but
+  // it must not already belong to another product.
+  const typedBarcode = d.barcode?.trim() || null;
+  if (typedBarcode) {
+    const clash = await db.product.findFirst({
+      where: { barcode: typedBarcode, ...(d.id ? { id: { not: d.id } } : {}) },
+      select: { id: true },
+    });
+    if (clash) return { ok: false, ...fieldFailure("barcode", "Already used by another product") };
+  }
+  const barcode = typedBarcode ?? (await uniqueBarcodeValue());
+
   const data = {
     name: d.name,
     nameBn: d.nameBn || null,
     slug: d.slug,
+    sku: d.sku?.trim() || d.slug,
+    barcode,
     description: d.description,
     descriptionBn: d.descriptionBn || null,
     priceCents: d.priceCents,
     salePriceCents: d.salePriceCents || null,
+    costCents: d.costCents ?? null,
+    weightGrams: d.weightGrams ?? null,
+    lengthMm: d.lengthMm ?? null,
+    widthMm: d.widthMm ?? null,
+    heightMm: d.heightMm ?? null,
     categoryId: d.categoryId,
     brandId: d.brandId || null,
     flashSale: Boolean(d.flashSale),
@@ -182,9 +262,18 @@ export async function saveProduct(
       await db.product.create({ data: { ...data, stock: d.stock ?? 0 } });
     }
   } catch (e) {
-    return (e as { code?: string }).code === "P2002"
-      ? { ok: false, ...fieldFailure("slug", "Slug already exists") }
-      : { ok: false, error: "Could not save product" };
+    const error = e as { code?: string; meta?: { target?: unknown } };
+    if (error.code === "P2002") {
+      const target = String(error.meta?.target ?? "");
+      log.warn("saveProduct rejected", { code: "P2002", target, productId: d.id });
+      if (target.includes("sku"))
+        return { ok: false, ...fieldFailure("sku", "SKU already exists") };
+      if (target.includes("barcode"))
+        return { ok: false, ...fieldFailure("barcode", "Barcode already exists") };
+      return { ok: false, ...fieldFailure("slug", "Slug already exists") };
+    }
+    log.error("saveProduct failed", { error: e, productId: d.id });
+    return { ok: false, error: "Could not save product" };
   }
 
   revalidateStore();
@@ -199,7 +288,9 @@ export async function deleteProduct(id: string): Promise<AdminActionResult> {
   await requireAdmin();
   try {
     await db.product.delete({ where: { id } });
-  } catch {
+  } catch (error) {
+    if (isReferencedError(error)) log.warn("deleteProduct rejected", { productId: id });
+    else log.error("deleteProduct failed", { error, productId: id });
     return {
       ok: false,
       error: "Could not delete product. Products with order history must be deactivated instead.",
@@ -228,7 +319,10 @@ async function saveUploadedImage(file: File): Promise<string | null> {
         overwrite: false,
       });
       return result.secure_url;
-    } catch {
+    } catch (error) {
+      // The cause is lost in production (a generic message is thrown below),
+      // so it must be recorded here or storage outages are invisible.
+      log.error("saveUploadedImage cloudinary failed", { error, folder: "storelaunch/products" });
       if (process.env.NODE_ENV === "production")
         throw new Error("Product image storage is temporarily unavailable. Try again later");
     }
@@ -299,7 +393,11 @@ export async function saveCategory(
   try {
     if (d.id) await db.category.update({ where: { id: d.id }, data });
     else await db.category.create({ data });
-  } catch {
+  } catch (error) {
+    // Non-duplicate failures would be mislabelled as "slug exists", so the
+    // real cause is logged here before the generic message is returned.
+    if (isDuplicateError(error)) log.warn("saveCategory rejected", { code: "P2002", slug: d.slug });
+    else log.error("saveCategory failed", { error, categoryId: d.id });
     return { ok: false, ...fieldFailure("slug", "Slug already exists") };
   }
   revalidateStore();
@@ -312,7 +410,9 @@ export async function deleteCategory(id: string): Promise<AdminActionResult> {
   await requireAdmin();
   try {
     await db.category.delete({ where: { id } });
-  } catch {
+  } catch (error) {
+    if (isReferencedError(error)) log.warn("deleteCategory rejected", { categoryId: id });
+    else log.error("deleteCategory failed", { error, categoryId: id });
     return {
       ok: false,
       error: "Category has products or subcategories — move or delete them first",
@@ -349,7 +449,9 @@ export async function saveBrand(
   try {
     if (d.id) await db.brand.update({ where: { id: d.id }, data });
     else await db.brand.create({ data });
-  } catch {
+  } catch (error) {
+    if (isDuplicateError(error)) log.warn("saveBrand rejected", { code: "P2002", slug: d.slug });
+    else log.error("saveBrand failed", { error, brandId: d.id });
     return { ok: false, ...fieldFailure("slug", "Slug already exists") };
   }
   revalidateStore();
@@ -407,6 +509,7 @@ export async function saveCampaign(
     try {
       uploadedImageUrl = await saveUploadedBanner(bannerFile);
     } catch (error) {
+      log.warn("saveCampaign banner rejected", { error, campaignId: d.id });
       return {
         ok: false,
         ...fieldFailure(
@@ -687,6 +790,11 @@ export async function saveRider(
       else await tx.rider.create({ data });
     });
   } catch (error) {
+    // Messages that reach the admin verbatim (no Prisma internals) are
+    // business rejections; everything else is a real persistence failure.
+    const userFacing = error instanceof Error && !error.message.includes("prisma");
+    if (userFacing) log.warn("saveRider rejected", { error });
+    else log.error("saveRider failed", { error });
     return {
       ok: false,
       error:
@@ -726,7 +834,9 @@ export async function deleteRider(id: string): Promise<AdminActionResult> {
           });
       }
     });
-  } catch {
+  } catch (error) {
+    if (isReferencedError(error)) log.warn("deleteRider rejected", { riderId: id });
+    else log.error("deleteRider failed", { error, riderId: id });
     return {
       ok: false,
       error:
@@ -968,17 +1078,22 @@ export async function saveShipment(
     },
   });
   // Same best-effort manifest roll-up as createShipment (§5.5).
+  let warning: string | undefined;
   if (deliveryCompanyId) {
     try {
       await attachOrderToDailyManifest({ orderId, deliveryCompanyId });
     } catch (error) {
-      console.error("[dispatch] manifest attach failed", { orderId, error });
+      // Best-effort step: a manifest hiccup must never block dispatch, but it
+      // is still recorded so a missing manifest entry stays traceable.
+      log.warn("saveShipment manifest attach failed", { orderId, error });
+      warning =
+        "Shipment saved, but today's courier manifest was not updated — attach the order to the manifest manually.";
     }
   }
   revalidatePath(`/admin/orders/${orderId}`);
   revalidatePath("/admin/shipments");
   revalidatePath("/admin/dispatch");
-  return { ok: true };
+  return { ok: true, warning };
 }
 
 export async function deleteDeliveryCompany(id: string): Promise<AdminActionResult> {
@@ -1515,6 +1630,8 @@ export async function createShipment(
   let statusFinal = status;
   let labelUrl: string | null = null;
   let savedMode: "Manual" | "Api" = "Manual";
+  /** Caveats worth surfacing to the operator as a warning toast (never fatal). */
+  let dispatchWarning: string | undefined;
 
   if (providerMode === "Api") {
     // Resolves by providerKey (steadfast/pathao/redx) with that row's
@@ -1533,7 +1650,16 @@ export async function createShipment(
       } catch (error) {
         // API onboarding failures must never block dispatch: keep the
         // shipment in manual mode so the parcel still ships today.
-        if (!(error instanceof CourierApiError)) throw error;
+        if (!(error instanceof CourierApiError)) {
+          log.error("createShipment courier onboarding failed", { error, orderId });
+          throw error;
+        }
+        log.warn("createShipment courier onboarding rejected", {
+          orderId,
+          provider: error.provider,
+          code: error.code,
+        });
+        dispatchWarning = `Shipment saved in manual mode — ${error.provider} API rejected the booking (${error.code}); book it with the courier and update tracking by hand.`;
       }
     }
   }
@@ -1557,7 +1683,11 @@ export async function createShipment(
     try {
       await attachOrderToDailyManifest({ orderId, deliveryCompanyId });
     } catch (error) {
-      console.error("[dispatch] manifest attach failed", { orderId, error });
+      // Best-effort step: a manifest hiccup must never block dispatch, but it
+      // is still recorded so a missing manifest entry stays traceable.
+      log.warn("createShipment manifest attach failed", { orderId, error });
+      dispatchWarning ??=
+        "Shipment saved, but today's courier manifest was not updated — attach the order to the manifest manually.";
     }
   }
 
@@ -1584,7 +1714,7 @@ export async function createShipment(
   revalidatePath("/admin/orders");
   revalidatePath("/admin/shipments");
   revalidatePath("/admin/dispatch");
-  return { ok: true };
+  return { ok: true, warning: dispatchWarning };
 }
 
 export async function syncShipmentStatus(
@@ -1607,7 +1737,15 @@ export async function syncShipmentStatus(
   try {
     outcome = await syncShipmentRecord(shipment);
   } catch (error) {
-    if (!(error instanceof CourierApiError)) throw error;
+    if (!(error instanceof CourierApiError)) {
+      log.error("syncShipmentStatus failed", { error, shipmentId });
+      throw error;
+    }
+    log.warn("syncShipmentStatus rejected", {
+      shipmentId,
+      provider: error.provider,
+      code: error.code,
+    });
     return { ok: false, error: `Sync failed (${error.code}); try again later` };
   }
   if (!outcome.ok)
@@ -1623,4 +1761,221 @@ export async function syncShipmentStatus(
   revalidatePath("/admin/shipments");
   revalidatePath(`/admin/shipments/${shipmentId}`);
   return { ok: true };
+}
+
+const adminUserSchema = z.object({
+  name: personName,
+  email: emailAddress,
+  phone: optionalContactPhone,
+  password: passwordValue,
+  roles: z.preprocess(
+    (value) => (Array.isArray(value) ? value : value == null ? [] : [value]),
+    z.array(z.enum(Roles)).min(1, "Select at least one role"),
+  ),
+});
+
+const adminUserRolesSchema = z.object({
+  id: recordId,
+  roles: z.preprocess(
+    (value) => (Array.isArray(value) ? value : value == null ? [] : [value]),
+    z.array(z.enum(Roles)).min(1, "Select at least one role"),
+  ),
+});
+
+function normalizeRoles(roles: Role[]): Role[] {
+  return Array.from(new Set(roles)).sort();
+}
+
+async function syncUserRoleAssignments(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  roles: Role[],
+) {
+  const t = tx as Prisma.TransactionClient & {
+    appRole?: {
+      findMany: (args: {
+        where: { name: { in: string[] } };
+        select: { id: true; name: true };
+      }) => Promise<Array<{ id: string; name: string }>>;
+    };
+    userAppRole?: {
+      deleteMany: (args: { where: { userId: string } }) => Promise<unknown>;
+      createMany: (args: {
+        data: Array<{ userId: string; roleId: string }>;
+        skipDuplicates: true;
+      }) => Promise<unknown>;
+    };
+  };
+  if (!t.appRole || !t.userAppRole) return;
+  const roleRows = await t.appRole.findMany({
+    where: { name: { in: roles } },
+    select: { id: true, name: true },
+  });
+  await t.userAppRole.deleteMany({ where: { userId } });
+  if (roleRows.length) {
+    await t.userAppRole.createMany({
+      data: roleRows.map((role) => ({ userId, roleId: role.id })),
+      skipDuplicates: true,
+    });
+  }
+}
+
+export async function createUserAction(
+  _prev: AdminActionResult | null,
+  formData: FormData,
+): Promise<AdminActionResult> {
+  await requireAdmin();
+  const parsed = adminUserSchema.safeParse({
+    name: formData.get("name"),
+    email: formData.get("email"),
+    phone: formData.get("phone"),
+    password: formData.get("password"),
+    roles: formData.getAll("roles"),
+  });
+  if (!parsed.success) return { ok: false, ...validationFailure(parsed.error) };
+  const email = parsed.data.email.toLowerCase().trim();
+  const phone = parsed.data.phone ? canonicalPhone(parsed.data.phone) : null;
+  if (phone && phone.length < 6)
+    return { ok: false, ...fieldFailure("phone", "Enter a valid phone number") };
+  const existingByEmail = await db.user.findUnique({
+    where: { email },
+    select: { id: true, email: true, phone: true },
+  });
+  if (existingByEmail)
+    return { ok: false, ...fieldFailure("email", "An account with this email already exists") };
+  if (phone) {
+    const candidates = await db.user.findMany({
+      where: { phone: { not: null } },
+      select: { id: true, email: true, phone: true },
+    });
+    const phoneMatches = candidates.filter(
+      (user) => user.phone && canonicalPhone(user.phone) === phone,
+    );
+    if (phoneMatches.length === 1)
+      return {
+        ok: false,
+        ...fieldFailure(
+          "phone",
+          "An account with this phone already exists. Use role assignment on that account instead.",
+        ),
+      };
+    if (phoneMatches.length > 1)
+      return {
+        ok: false,
+        ...fieldFailure(
+          "phone",
+          "This phone belongs to multiple accounts. Resolve duplicate accounts before assigning roles.",
+        ),
+      };
+  }
+  const passwordHash = await bcrypt.hash(parsed.data.password, 10);
+  const roles = normalizeRoles(parsed.data.roles);
+  try {
+    const user = await db.$transaction(async (tx) => {
+      if (phone) {
+        const candidates = await tx.user.findMany({
+          where: { phone: { not: null } },
+          select: { id: true, phone: true },
+        });
+        const duplicate = candidates.find(
+          (candidate) => candidate.phone && canonicalPhone(candidate.phone) === phone,
+        );
+        if (duplicate) throw Object.assign(new Error("PHONE_EXISTS"), { code: "PHONE_EXISTS" });
+      }
+      const created = await tx.user.create({
+        data: { email, name: parsed.data.name, phone: phone || null, passwordHash, roles },
+      });
+      await syncUserRoleAssignments(tx, created.id, roles);
+      return created;
+    });
+    revalidatePath("/admin/users");
+    revalidatePath("/admin/customers");
+    revalidatePath("/admin/wallets");
+    return { ok: true, id: user.id };
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "PHONE_EXISTS")
+      return {
+        ok: false,
+        ...fieldFailure(
+          "phone",
+          "An account with this phone already exists. Use role assignment on that account instead.",
+        ),
+      };
+    if (isDuplicateError(error))
+      return { ok: false, error: "An account with this email or phone already exists" };
+    log.error("createUserAction failed", { error });
+    return { ok: false, error: "Could not create the user. Please try again." };
+  }
+}
+
+export async function updateUserRoles(
+  _prev: AdminActionResult | null,
+  formData: FormData,
+): Promise<AdminActionResult> {
+  const admin = await requireAdmin();
+  const parsed = adminUserRolesSchema.safeParse({
+    id: formData.get("id"),
+    roles: formData.getAll("roles"),
+  });
+  if (!parsed.success) return { ok: false, ...validationFailure(parsed.error) };
+  const roles = normalizeRoles(parsed.data.roles);
+  try {
+    await db.$transaction(async (tx) => {
+      await lockAccountStatus(tx);
+      const [actor, user] = await Promise.all([
+        tx.user.findFirst({
+          where: { id: admin.id, active: true, roles: { has: Roles.Admin } },
+          select: { id: true },
+        }),
+        tx.user.findUnique({
+          where: { id: parsed.data.id },
+          select: { id: true, active: true, roles: true },
+        }),
+      ]);
+      if (!actor) throw new Error("Only an active administrator can change user roles.");
+      if (!user) throw new Error("Account not found.");
+      if (user.active && user.roles.includes(Roles.Admin) && !roles.includes(Roles.Admin)) {
+        const otherAdmins = await tx.user.count({
+          where: { id: { not: user.id }, active: true, roles: { has: Roles.Admin } },
+        });
+        if (otherAdmins < 1) throw new Error("At least one active administrator must remain.");
+      }
+      if (
+        user.id === admin.id &&
+        user.roles.includes(Roles.Admin) &&
+        !roles.includes(Roles.Admin)
+      ) {
+        throw new Error("You cannot remove your own administrator role.");
+      }
+      const rolesChanged = JSON.stringify(normalizeRoles(user.roles)) !== JSON.stringify(roles);
+      await tx.user.update({
+        where: { id: user.id },
+        data: {
+          roles,
+          ...(rolesChanged ? { sessionVersion: { increment: 1 } } : {}),
+        },
+      });
+      await syncUserRoleAssignments(tx, user.id, roles);
+      if (rolesChanged) {
+        await tx.loginChallenge.updateMany({
+          where: { userId: user.id, consumedAt: null },
+          data: { consumedAt: new Date() },
+        });
+      }
+    });
+    revalidatePath("/admin/users");
+    revalidatePath("/admin/riders");
+    revalidatePath("/admin/customers");
+    revalidatePath("/", "layout");
+    return { ok: true };
+  } catch (error) {
+    const message =
+      error instanceof Error && !error.message.includes("prisma")
+        ? error.message
+        : "Could not update user roles. Please try again.";
+    if (error instanceof Error && !error.message.includes("prisma"))
+      log.warn("updateUserRoles rejected", { userId: parsed.data.id, message });
+    else log.error("updateUserRoles failed", { error, userId: parsed.data.id });
+    return { ok: false, error: message };
+  }
 }

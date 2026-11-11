@@ -1,15 +1,13 @@
-import { useActionState, useEffect, useTransition } from "react";
+"use client";
+
+import { useActionState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { requireHrmPage } from "@backend/lib/session";
 import { savePayrollRun, type HrmActionResult } from "@backend/actions/hrm";
 import { PayrollRunForm } from "@frontend/components/hrm/payroll-controls";
-import { useToast } from "@frontend/components/ui/toast";
 
 export default function HrmPayrollPage() {
   const router = useRouter();
-  const dict = useToast(); // Will use dict from provider in layout
-  const [state, action, pending] = useActionState<HrmActionResult, FormData>(savePayrollRun, null);
-  const toast = useToast();
+  const [state] = useActionState<HrmActionResult, FormData>(savePayrollRun, null);
 
   useEffect(() => {
     if (state?.ok) router.refresh();

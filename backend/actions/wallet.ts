@@ -8,6 +8,9 @@ import { z } from "zod";
 import { db } from "../lib/db";
 import { requireAdmin } from "../lib/session";
 import { creditWalletBalance } from "../lib/wallet-balance";
+import { logger } from "../lib/logger";
+
+const log = logger.child({ scope: "action:wallet" });
 
 export type WalletActionResult = {
   ok: boolean;
@@ -57,7 +60,8 @@ export async function giftWallet(
     bustWallet();
     return { ok: true, balanceCents: result };
   } catch (error) {
-    if (error instanceof Error && error.message === "WALLET_BALANCE_LIMIT")
+    if (error instanceof Error && error.message === "WALLET_BALANCE_LIMIT") {
+      log.warn("giftWallet rejected", { code: "WALLET_BALANCE_LIMIT", userId, amountCents });
       return {
         ok: false,
         fieldErrors: {
@@ -66,6 +70,8 @@ export async function giftWallet(
           ],
         },
       };
+    }
+    log.error("giftWallet failed", { error, userId, amountCents });
     return { ok: false, error: "Could not gift wallet credit" };
   }
 }
@@ -116,8 +122,14 @@ export async function deductWallet(
     return { ok: true, balanceCents: result };
   } catch (e) {
     const msg = (e as Error).message;
-    if (msg === "NO_WALLET") return { ok: false, error: "This customer has no wallet" };
-    if (msg === "INSUFFICIENT") return { ok: false, error: "Insufficient wallet balance" };
+    if (msg === "NO_WALLET" || msg === "INSUFFICIENT") {
+      log.warn("deductWallet rejected", { code: msg, userId, amountCents });
+      return {
+        ok: false,
+        error: msg === "NO_WALLET" ? "This customer has no wallet" : "Insufficient wallet balance",
+      };
+    }
+    log.error("deductWallet failed", { error: e, userId, amountCents });
     return { ok: false, error: "Could not deduct wallet credit" };
   }
 }

@@ -1,9 +1,7 @@
-import { db } from "@backend/lib/db";
+import { listSuppliers } from "@backend/lib/admin-catalog-queries";
 
 export default async function SuppliersPage() {
-  const suppliers = await db.supplier.findMany({
-    orderBy: { name: "asc" },
-  });
+  const suppliers = await listSuppliers();
 
   return (
     <div className="min-h-screen bg-background">

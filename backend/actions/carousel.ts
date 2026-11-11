@@ -13,6 +13,9 @@ import { db } from "../lib/db";
 import { requireAdmin } from "../lib/session";
 import { saveResizedBannerImage } from "../lib/upload-image";
 import type { AdminActionResult } from "./admin";
+import { logger } from "../lib/logger";
+
+const log = logger.child({ scope: "action:carousel" });
 
 const slideSchema = z.object({
   id: recordId.optional(),
@@ -55,6 +58,7 @@ export async function saveSlide(
         label: "Slide",
       });
     } catch (error) {
+      log.warn("saveSlide banner rejected", { error });
       return {
         ok: false,
         ...fieldFailure(

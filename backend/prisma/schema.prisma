@@ -10,11 +10,35 @@ datasource db {
 enum Role {
   Customer
   Admin
+  SuperAdmin
   Rider
   Support
   Warehouse
   Sales
   Manager
+}
+
+model AppRole {
+  id        String        @id @default(cuid())
+  name      Role          @unique
+  label     String
+  createdAt DateTime      @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  updatedAt DateTime      @updatedAt
+  userRoles UserAppRole[]
+
+  @@map("Roles")
+}
+
+model UserAppRole {
+  userId     String
+  roleId     String
+  assignedAt DateTime @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role       AppRole  @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@index([roleId])
+  @@map("UserRoles")
 }
 
 enum OrderStatus {
@@ -163,7 +187,10 @@ model User {
   payrollRunsCreated      PayrollRun[]
   reviewsGiven            PerformanceReview[]
 
+  roleAssignments         UserAppRole[]
+
   @@index([createdAt])
+  @@map("Users")
 }
 
 enum InboxCategory {
@@ -543,6 +570,22 @@ model License {
   activatedAt DateTime?
   revokedAt   DateTime?
   createdAt   DateTime  @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+}
+
+/// Keys issued to customers from the admin license screen.
+/// The full key is kept so it can be re-copied later; revoking only marks it
+/// here (keys are verified offline, so a revoked key can't be recalled from a
+/// customer instance that already activated it).
+model IssuedLicense {
+  id        String    @id @default(cuid())
+  key       String    @unique
+  label     String
+  storeSlug String?
+  expiresAt DateTime?
+  revokedAt DateTime?
+  createdAt DateTime  @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+
+  @@index([createdAt])
 }
 
 model Category {
@@ -1026,6 +1069,7 @@ model Order {
   salesRep              User?               @relation("SalesRepOrders", fields: [salesRepId], references: [id], onDelete: SetNull)
   /** Commission snapshot: computed from the rep's rate at order time. */
   commissionCents       Int                 @default(0)
+  idempotencyKey        String?             @unique
   replacementRequestId  String?             @unique
   replacementRequest    AfterSalesRequest?  @relation("RequestReplacementOrder", fields: [replacementRequestId], references: [id], onDelete: SetNull)
   createdAt             DateTime            @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))

@@ -1,6 +1,9 @@
 import "server-only";
 import nodemailer from "nodemailer-v10";
 import type { Transporter } from "nodemailer-v10";
+import { logger } from "./logger";
+
+const log = logger.child({ scope: "mail" });
 
 let transporter: Transporter | undefined;
 
@@ -45,7 +48,10 @@ export async function sendEmail({
       ...(html ? { html } : {}),
     });
     return true;
-  } catch {
+  } catch (error) {
+    // Subject only — the recipient address is redacted PII. Mail is fire-and-
+    // forget everywhere, so without this line a dead SMTP server is silent.
+    log.warn("email send failed", { error, subject });
     return false;
   }
 }

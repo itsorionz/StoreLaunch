@@ -1,9 +1,8 @@
-import { OrderStatuses } from "@backend/lib/enums.mjs";
 import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@backend/lib/session";
-import { db } from "@backend/lib/db";
+import { listOrdersWithPurchasedProducts } from "@backend/lib/account-queries";
 import { getDict } from "@frontend/i18n/dict";
 
 export const metadata = { title: "My Products" };
@@ -12,32 +11,7 @@ async function MyProductsContent() {
   const user = await getCurrentUser();
   if (!user) redirect("/login?callbackUrl=/account/products");
 
-  const [orders, dict] = await Promise.all([
-    db.order.findMany({
-      where: { userId: user.id, status: { not: OrderStatuses.Cancelled } },
-      orderBy: { createdAt: "desc" },
-      select: {
-        createdAt: true,
-        items: {
-          select: {
-            productId: true,
-            quantity: true,
-            product: {
-              select: {
-                id: true,
-                name: true,
-                slug: true,
-                images: true,
-                priceCents: true,
-                salePriceCents: true,
-              },
-            },
-          },
-        },
-      },
-    }),
-    getDict(),
-  ]);
+  const [orders, dict] = await Promise.all([listOrdersWithPurchasedProducts(user.id), getDict()]);
 
   const map = new Map<
     string,

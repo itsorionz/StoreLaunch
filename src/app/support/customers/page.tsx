@@ -1,15 +1,11 @@
 import Link from "next/link";
 import { requireServicePage } from "@backend/lib/session";
-import { db } from "@backend/lib/db";
-import { Roles } from "@backend/lib/enums.mjs";
-import { userTextWhere } from "@backend/lib/search-filters";
+import { getSupportCustomerDirectory } from "@backend/lib/support-queries";
 import { getDict } from "@frontend/i18n/dict";
 import { formatPrice } from "@backend/lib/money";
 import { FilterPills, Pagination } from "@frontend/components/service/service-ui";
 
 export const metadata = { title: "Customers — Support" };
-
-const PAGE_SIZE = 20;
 
 // Customer directory with the segments an agent actually uses: search by
 // name/email/phone, plus wallet-balance and repeat-order shortcuts.
@@ -26,42 +22,11 @@ export default async function SupportCustomersPage({
   const rawPage = Number(params.page ?? "1");
   const requested = Number.isFinite(rawPage) && rawPage >= 1 ? Math.floor(rawPage) : 1;
 
-  const base = {
-    roles: { has: Roles.Customer },
-    ...(q ? userTextWhere(q) : {}),
-  };
-
-  const countWhere = (candidate: string) =>
-    candidate === "wallet"
-      ? { AND: [base, { wallet: { is: { balanceCents: { gt: 0 } } } }] }
-      : base;
-
-  const total = await db.user.count({ where: countWhere(segment) });
-  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const page = Math.min(requested, pages);
-
-  const [customers, segmentCounts] = await Promise.all([
-    db.user.findMany({
-      where: countWhere(segment),
-      orderBy: { createdAt: "desc" },
-      skip: (page - 1) * PAGE_SIZE,
-      take: PAGE_SIZE,
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        phone: true,
-        createdAt: true,
-        active: true,
-        wallet: { select: { balanceCents: true } },
-        _count: { select: { orders: true, chatConversations: true, supportTickets: true } },
-      },
-    }),
-    Promise.all([
-      db.user.count({ where: base }),
-      db.user.count({ where: countWhere("wallet") }),
-    ]).then(([all, wallet]) => ({ all, wallet })),
-  ]);
+  const { customers, segmentCounts, total, pages, page } = await getSupportCustomerDirectory({
+    q,
+    segment,
+    requestedPage: requested,
+  });
 
   const linkWith = (patch: Record<string, string | undefined>) => {
     const merged: Record<string, string | undefined> = {

@@ -1,15 +1,12 @@
-import { db } from "@backend/lib/db";
+import { listProductFormBrands, listProductFormCategories } from "@backend/lib/products-queries";
 import { ProductForm } from "@frontend/components/admin/product-form";
 
 export const metadata = { title: "Add product — Admin" };
 
 export default async function NewProductPage() {
   const [categories, brands] = await Promise.all([
-    db.category.findMany({
-      orderBy: [{ order: "asc" }, { name: "asc" }],
-      select: { id: true, name: true, nameBn: true, parentId: true },
-    }),
-    db.brand.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, nameBn: true } }),
+    listProductFormCategories(),
+    listProductFormBrands(),
   ]);
 
   return (

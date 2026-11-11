@@ -79,12 +79,47 @@ const groups: {
   {
     label: "HRM",
     items: [
-      { href: "/hrm", label: "Overview", exact: true, icon: <IconUsers /> },
-      { href: "/hrm/employees", label: "Employees", icon: <IconUsers /> },
-      { href: "/hrm/attendance", label: "Attendance", icon: <IconPulse /> },
-      { href: "/hrm/leave", label: "Leave", icon: <IconCalendar /> },
-      { href: "/hrm/payroll", label: "Payroll", icon: <IconWallet /> },
-      { href: "/hrm/performance", label: "Performance", icon: <IconStar /> },
+      { href: "/admin/hrm", label: "Overview", exact: true, icon: <IconUsers /> },
+      { href: "/admin/hrm/employees", label: "Employees", icon: <IconUsers /> },
+      { href: "/admin/hrm/attendance", label: "Attendance", icon: <IconPulse /> },
+      { href: "/admin/hrm/leave", label: "Leave", icon: <IconCalendar /> },
+      { href: "/admin/hrm/payroll", label: "Payroll", icon: <IconWallet /> },
+      { href: "/admin/hrm/performance", label: "Performance", icon: <IconStar /> },
+    ],
+  },
+  {
+    label: "Sales",
+    items: [
+      { href: "/admin/sales", label: "Dashboard", exact: true, icon: <IconBag /> },
+      { href: "/admin/sales/list", label: "Sales list", icon: <IconBag /> },
+      { href: "/admin/sales/new", label: "New sale", icon: <IconPulse /> },
+      { href: "/admin/sales/invoice", label: "Invoices", icon: <IconTag /> },
+      { href: "/admin/sales/orders", label: "Orders", icon: <IconGrid /> },
+    ],
+  },
+  {
+    label: "Warehouse",
+    items: [
+      { href: "/admin/warehouse", label: "Dashboard", exact: true, icon: <IconWarehouse /> },
+      { href: "/admin/warehouse/pick", label: "Pick queue", icon: <IconBox /> },
+      { href: "/admin/warehouse/pack", label: "Pack station", icon: <IconBox /> },
+      { href: "/admin/warehouse/receiving", label: "Receiving", icon: <IconTruck /> },
+      { href: "/admin/warehouse/stock", label: "Stock", icon: <IconBox /> },
+      { href: "/admin/warehouse/stocktake", label: "Stocktake", icon: <IconChart /> },
+      { href: "/admin/warehouse/print", label: "Print slips", icon: <IconPrinter /> },
+    ],
+  },
+  {
+    label: "Support",
+    items: [
+      { href: "/admin/support", label: "Dashboard", exact: true, icon: <IconUsers /> },
+      { href: "/admin/support/tickets", label: "Tickets", icon: <IconStar /> },
+      { href: "/admin/support/tickets/new", label: "New ticket", icon: <IconPulse /> },
+      { href: "/admin/support/closed", label: "Closed", icon: <IconCalendar /> },
+      { href: "/admin/support/customers", label: "Customers", icon: <IconUsers /> },
+      { href: "/admin/support/orders", label: "Orders", icon: <IconBag /> },
+      { href: "/admin/support/search", label: "Search", icon: <IconMega /> },
+      { href: "/admin/support/conversation", label: "Conversations", icon: <IconChat /> },
     ],
   },
   {
@@ -95,9 +130,21 @@ const groups: {
       { href: "/admin/settings", label: "Settings & license", icon: <IconGear /> },
     ],
   },
+  {
+    label: "License",
+    items: [
+      { href: "/admin/license", label: "License keys", icon: <IconKey /> },
+    ],
+  },
 ];
 
-export function AdminNav({ onNavigate }: { onNavigate?: () => void }) {
+export function AdminNav({
+  onNavigate,
+  isSuperAdmin = false,
+}: {
+  onNavigate?: () => void;
+  isSuperAdmin?: boolean;
+}) {
   const pathname = usePathname();
   // The most specific matching entry wins, so /admin/warehouse does not stay
   // highlighted while the owner is on /admin/warehouse/transfer.
@@ -107,37 +154,39 @@ export function AdminNav({ onNavigate }: { onNavigate?: () => void }) {
     .sort((a, b) => b.href.length - a.href.length)[0]?.href;
   return (
     <div className="space-y-6">
-      {groups.map((g) => (
-        <div key={g.label}>
-          <p className="mb-1.5 px-3 text-[10px] font-bold uppercase tracking-wider text-muted">
-            {g.label}
-          </p>
-          <ul className="space-y-0.5">
-            {g.items.map((item) => {
-              const active = item.href === activeHref;
-              return (
-                <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    onClick={onNavigate}
-                    className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                      active
-                        ? "bg-primary/15 font-semibold text-primary"
-                        : "text-muted hover:bg-surface-2 hover:text-foreground"
-                    }`}
-                  >
-                    <span className={active ? "text-primary" : "text-muted"}>{item.icon}</span>
-                    {item.label}
-                    {active && (
-                      <span className="ml-auto h-1.5 w-1.5 rounded-full bg-primary" aria-hidden />
-                    )}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      ))}
+      {groups
+        .filter((g) => !(g.label === "License" && !isSuperAdmin))
+        .map((g) => (
+          <div key={g.label}>
+            <p className="mb-1.5 px-3 text-[10px] font-bold uppercase tracking-wider text-muted">
+              {g.label}
+            </p>
+            <ul className="space-y-0.5">
+              {g.items.map((item) => {
+                const active = item.href === activeHref;
+                return (
+                  <li key={item.href}>
+                    <Link
+                      href={item.href}
+                      onClick={onNavigate}
+                      className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                        active
+                          ? "bg-primary/15 font-semibold text-primary"
+                          : "text-muted hover:bg-surface-2 hover:text-foreground"
+                      }`}
+                    >
+                      <span className={active ? "text-primary" : "text-muted"}>{item.icon}</span>
+                      {item.label}
+                      {active && (
+                        <span className="ml-auto h-1.5 w-1.5 rounded-full bg-primary" aria-hidden />
+                      )}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))}
     </div>
   );
 }
@@ -145,14 +194,16 @@ export function AdminNav({ onNavigate }: { onNavigate?: () => void }) {
 export function AdminMobileBar({
   storeName,
   logoUrl,
+  isSuperAdmin = false,
 }: {
   storeName: string;
   logoUrl: string | null;
+  isSuperAdmin?: boolean;
 }) {
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="fixed inset-x-0 top-0 z-40 lg:hidden">
+    <div className="fixed inset-x-0 top-0 z-40 lg:hidden print:hidden">
       <div className="flex h-14 items-center justify-between border-b border-border bg-surface px-4">
         <Link href="/admin" className="flex items-center gap-2">
           <StoreLogo logoUrl={logoUrl} storeName={storeName} className="h-7 w-7 text-xs" />
@@ -195,7 +246,7 @@ export function AdminMobileBar({
       </div>
       {open && (
         <div className="border-b border-border bg-surface p-3 shadow-lg">
-          <AdminNav onNavigate={() => setOpen(false)} />
+          <AdminNav onNavigate={() => setOpen(false)} isSuperAdmin={isSuperAdmin} />
         </div>
       )}
     </div>
@@ -480,6 +531,24 @@ function IconPulse() {
     </svg>
   );
 }
+function IconKey() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M21 2l-2 6m7 6v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h6l6 6" />
+      <path d="M17 11V9a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2z" />
+    </svg>
+  );
+}
 function IconWarehouse() {
   return (
     <svg
@@ -497,6 +566,42 @@ function IconWarehouse() {
       <path d="M6 18h12" />
       <path d="M6 14h12" />
       <rect width="12" height="12" x="6" y="10" />
+    </svg>
+  );
+}
+function IconPrinter() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <polyline points="6 9 6 2 18 2 18 9" />
+      <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+      <rect width="13" height="8" x="4" y="9" rx="1" />
+    </svg>
+  );
+}
+function IconChat() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2z" />
     </svg>
   );
 }

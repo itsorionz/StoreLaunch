@@ -2,14 +2,21 @@
 
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useToast } from "@frontend/components/ui/toast";
 
 export function RefreshAdminDashboard() {
   const router = useRouter();
+  const toast = useToast();
   const [pending, startTransition] = useTransition();
   return (
     <button
       type="button"
-      onClick={() => startTransition(() => router.refresh())}
+      onClick={() =>
+        startTransition(() => {
+          router.refresh();
+          toast("Dashboard refreshed.");
+        })
+      }
       disabled={pending}
       className="btn-outline gap-2"
     >

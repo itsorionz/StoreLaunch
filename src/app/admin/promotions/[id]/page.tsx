@@ -1,41 +1,28 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { db } from "@backend/lib/db";
-import { PromotionStatuses, PromotionAudiences, Roles } from "@backend/lib/enums.mjs";
+import {
+  countActiveCustomers,
+  countPromotionEligibleCustomers,
+  countPromotionReads,
+  getPromotion,
+  getPromotionSelectedUsers,
+  listPromotionCampaigns,
+} from "@backend/lib/admin-promotion-queries";
+import { PromotionStatuses, PromotionAudiences } from "@backend/lib/enums.mjs";
 import { PromotionForm, SendPromotionButton } from "@frontend/components/admin/promotion-form";
 
 export const metadata = { title: "Review promotion - Admin" };
 export default async function PromotionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const promotion = await db.promotion.findUnique({
-    where: { id },
-    include: {
-      campaign: { select: { title: true, active: true } },
-      _count: { select: { messages: true } },
-    },
-  });
+  const promotion = await getPromotion(id);
   if (!promotion) notFound();
   const [campaigns, selectedCustomers, activeCustomerCount, eligibleCount, readCount] =
     await Promise.all([
-      db.campaign.findMany({
-        orderBy: [{ order: "asc" }, { title: "asc" }],
-        select: { id: true, title: true, active: true },
-      }),
-      db.user.findMany({
-        where: { id: { in: promotion.selectedUserIds } },
-        select: { id: true, name: true, email: true, phone: true, active: true },
-      }),
-      db.user.count({ where: { active: true, roles: { has: Roles.Customer } } }),
-      db.user.count({
-        where: {
-          active: true,
-          roles: { has: Roles.Customer },
-          ...(promotion.audience === PromotionAudiences.SelectedCustomers
-            ? { id: { in: promotion.selectedUserIds } }
-            : {}),
-        },
-      }),
-      db.inboxMessage.count({ where: { promotionId: id, readAt: { not: null } } }),
+      listPromotionCampaigns(),
+      getPromotionSelectedUsers(promotion.selectedUserIds),
+      countActiveCustomers(),
+      countPromotionEligibleCustomers(promotion.audience, promotion.selectedUserIds),
+      countPromotionReads(id),
     ]);
   const sent = promotion.status === PromotionStatuses.Sent;
   return (

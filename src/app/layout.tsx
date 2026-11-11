@@ -1,5 +1,5 @@
 import { ScrollToTop } from "@frontend/components/layout/scroll-to-top";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Noto_Sans_Bengali } from "next/font/google";
 import "./globals.css";
 import { getStoreSettings } from "@backend/lib/settings";
@@ -10,6 +10,7 @@ import { ThemeProvider } from "@frontend/components/layout/theme-provider";
 import { DictProvider } from "@frontend/i18n/provider";
 import { CartDrawer } from "@frontend/components/cart/cart-drawer";
 import { ToastProvider } from "@frontend/components/ui/toast";
+import { Preloader } from "@frontend/components/ui/preloader";
 import { Suspense } from "react";
 
 const geistSans = Geist({
@@ -28,6 +29,12 @@ const bengali = Noto_Sans_Bengali({
 });
 
 const themeScript = `(function(){var t="light";try{t=localStorage.getItem("sl_theme")||"light"}catch(e){}document.documentElement.classList.toggle("dark",t==="dark")})();`;
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
 
 export async function generateMetadata(): Promise<Metadata> {
   const settings = await getStoreSettings();
@@ -89,7 +96,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
-      <body className="flex min-h-full flex-col">
+      <body className="flex min-h-full flex-col" suppressHydrationWarning>
+        <Preloader />
         <ToastProvider>
           <ThemeProvider>
             <Suspense fallback={<DictFallback>{children}</DictFallback>}>

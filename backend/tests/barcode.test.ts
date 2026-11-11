@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { encodeCode39, isCode39Encodable } from "../lib/barcode";
+import {
+  ean13CheckDigit,
+  encodeCode39,
+  generateBarcodeValue,
+  isCode39Encodable,
+} from "../lib/barcode";
 
 // Pure encoder for courier labels (§5.4) — no database needed.
 
@@ -65,4 +70,31 @@ test("encoding is deterministic", () => {
   const a = encodeCode39("MAN-ALPHAMOV-X9K2D-20261029");
   const b = encodeCode39("MAN-ALPHAMOV-X9K2D-20261029");
   assert.deepEqual(a, b);
+});
+
+test("EAN-13 check digit matches published examples", () => {
+  // GS1 example: 4006381333931 → body 400638133393, check digit 1.
+  assert.equal(ean13CheckDigit("400638133393"), 1);
+  // Another well-known valid code: 9780306406157.
+  assert.equal(ean13CheckDigit("978030640615"), 7);
+  // Mod-10 wraparound: a body whose weighted sum ends in 0 needs check 0.
+  assert.equal(ean13CheckDigit("000000000000"), 0);
+});
+
+test("generated product barcodes are valid in-store EAN-13 values", () => {
+  const seen = new Set<string>();
+  for (let index = 0; index < 200; index++) {
+    const value = generateBarcodeValue();
+    assert.match(value, /^2\d{12}$/, `unexpected value ${value}`);
+    assert.equal(
+      Number(value[12]),
+      ean13CheckDigit(value.slice(0, 12)),
+      `invalid check digit in ${value}`,
+    );
+    // Code 39 must render every digit (13 numeric characters encode cleanly).
+    assert.equal(isCode39Encodable(value), true);
+    seen.add(value);
+  }
+  // Random generation should not collapse onto one value.
+  assert.ok(seen.size > 190, `only ${seen.size} unique barcodes out of 200`);
 });

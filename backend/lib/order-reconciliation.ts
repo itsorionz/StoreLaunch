@@ -19,7 +19,7 @@ export async function remitCodCollection(
   actor: OrderActor,
   method: (typeof CodSettlementMethods)[keyof typeof CodSettlementMethods] = CodSettlementMethods.Other,
 ): Promise<Result> {
-  if (actor.role !== Roles.Admin)
+  if (actor.role !== Roles.Admin && actor.role !== Roles.SuperAdmin)
     return { ok: false, error: "Only an admin can confirm store receipt" };
   if (
     !Object.values(CodSettlementMethods).includes(
@@ -136,7 +136,7 @@ export async function confirmLegacyOrderCurrency(
   evidence: string,
   actor: OrderActor,
 ): Promise<Result> {
-  if (actor.role !== Roles.Admin)
+  if (actor.role !== Roles.Admin && actor.role !== Roles.SuperAdmin)
     return { ok: false, error: "Only an admin can confirm historical currency" };
   if (
     !/^[A-Z]{3}$/.test(code) ||

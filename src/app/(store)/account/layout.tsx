@@ -5,7 +5,7 @@ import { getCurrentUser } from "@backend/lib/session";
 import { getWalletBalance } from "@backend/lib/wallet";
 import { getStoreSettings } from "@backend/lib/settings";
 import { formatPrice } from "@backend/lib/money";
-import { db } from "@backend/lib/db";
+import { countPendingStockNotifications } from "@backend/lib/account-queries";
 import { getInboxUnreadCount } from "@backend/lib/inbox";
 import { getUnreadCounts } from "@backend/lib/chat";
 import { getCartCount } from "@backend/lib/cart";
@@ -20,7 +20,7 @@ async function SidebarSection() {
   const [balance, settings, notifCount, inboxUnread, chatUnread, cartCount] = await Promise.all([
     getWalletBalance(user.id),
     getStoreSettings(),
-    db.stockNotification.count({ where: { userId: user.id, notifiedAt: null } }),
+    countPendingStockNotifications(user.id),
     getInboxUnreadCount(user.id),
     getUnreadCounts({ id: user.id, role: user.role }),
     getCartCount(),

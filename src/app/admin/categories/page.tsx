@@ -1,4 +1,4 @@
-import { db } from "@backend/lib/db";
+import { listCategoriesWithCounts } from "@backend/lib/admin-catalog-queries";
 import { DeleteCategoryButton } from "@frontend/components/admin/delete-buttons";
 import { AddCategoryModal, EditCategoryModal } from "@frontend/components/admin/entity-modals";
 import { PageHeader } from "@frontend/components/admin/admin-ui";
@@ -80,10 +80,7 @@ function TreeRow({
 }
 
 export default async function AdminCategoriesPage() {
-  const categories = await db.category.findMany({
-    orderBy: [{ order: "asc" }, { name: "asc" }],
-    include: { _count: { select: { products: true } } },
-  });
+  const categories = await listCategoriesWithCounts();
 
   const tree = buildTree(categories);
   const parentOptions = categories.map((c) => ({

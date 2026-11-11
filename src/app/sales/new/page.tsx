@@ -1,16 +1,12 @@
 import { requireSalesPage } from "@backend/lib/session";
-import { db } from "@backend/lib/db";
+import { listActiveDeliveryZones } from "@backend/lib/sales-queries";
 import { SalePos } from "@frontend/components/sales/sale-pos";
 
 export const metadata = { title: "New sale" };
 
 export default async function NewSalePage() {
   await requireSalesPage();
-  const zones = await db.deliveryZone.findMany({
-    where: { active: true },
-    select: { id: true, name: true, rateCents: true },
-    orderBy: { name: "asc" },
-  });
+  const zones = await listActiveDeliveryZones();
 
   return (
     <div className="space-y-6">

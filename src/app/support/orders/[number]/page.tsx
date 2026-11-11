@@ -1,13 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireServicePage } from "@backend/lib/session";
-import { db } from "@backend/lib/db";
-import {
-  OrderStatuses,
-  PaymentMethods,
-  RefundStatuses,
-  SupportTicketStatuses,
-} from "@backend/lib/enums.mjs";
+import { getSupportOrderDetail, listOrderCustomerContext } from "@backend/lib/support-queries";
+import { OrderStatuses, PaymentMethods, RefundStatuses } from "@backend/lib/enums.mjs";
 import { formatPrice } from "@backend/lib/money";
 import { ORDER_STATUS_LABELS } from "@backend/lib/order-status";
 import { OrderTimeline } from "@frontend/components/orders/order-timeline";
@@ -29,59 +24,14 @@ export default async function SupportOrderDetailPage({
   const { number } = await params;
   await requireServicePage();
   const dict = await getDict();
-  const order = await db.order.findUnique({
-    where: { number },
-    include: {
-      paymentAttempt: true,
-      refunds: { orderBy: { createdAt: "desc" } },
-      afterSalesRequests: {
-        include: { refunds: true, items: { include: { orderItem: true } } },
-        orderBy: { requestedAt: "desc" },
-      },
-      deliveryProof: {
-        select: {
-          id: true,
-          orderId: true,
-          riderId: true,
-          receivedBy: true,
-          relationship: true,
-          note: true,
-          photoKey: true,
-          photoMime: true,
-          createdAt: true,
-        },
-      },
-      deliveryAttempts: { orderBy: { createdAt: "desc" } },
-      items: true,
-      user: { select: { id: true, name: true, email: true } },
-      events: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
-      supportTickets: {
-        orderBy: { lastActivityAt: "desc" },
-        take: 5,
-        select: { id: true, number: true, subject: true, status: true, priority: true },
-      },
-    },
-  });
+  const order = await getSupportOrderDetail(number);
   if (!order) notFound();
 
   const orderCurrency =
     order.currencySymbol ||
     (order.currencyCode ? `${order.currencyCode} ` : "[currency unrecorded] ");
 
-  const [conversations, customerTickets] = await Promise.all([
-    db.chatConversation.findMany({
-      where: { customerId: order.userId },
-      orderBy: { lastMessageAt: "desc" },
-      take: 5,
-      select: { id: true, subject: true, status: true, lastMessageAt: true },
-    }),
-    db.supportTicket.count({
-      where: {
-        customerId: order.userId,
-        status: { notIn: [SupportTicketStatuses.Closed] },
-      },
-    }),
-  ]);
+  const { conversations, customerTickets } = await listOrderCustomerContext(order.userId);
 
   const money = (cents: number) => formatPrice(cents, orderCurrency);
 

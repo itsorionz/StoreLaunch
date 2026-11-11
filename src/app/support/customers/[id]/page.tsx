@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireServicePage } from "@backend/lib/session";
-import { db } from "@backend/lib/db";
-import { Roles, SupportTicketStatuses } from "@backend/lib/enums.mjs";
+import { getSupportCustomer, listSupportCustomerHistory } from "@backend/lib/support-queries";
+import { SupportTicketStatuses } from "@backend/lib/enums.mjs";
 import { formatPrice } from "@backend/lib/money";
 import { getDict } from "@frontend/i18n/dict";
 import { StatusBadge } from "@frontend/components/admin/admin-ui";
@@ -21,92 +21,11 @@ export default async function SupportCustomerPage({ params }: { params: Promise<
   const { id } = await params;
   await requireServicePage();
   const dict = await getDict();
-  const customer = await db.user.findFirst({
-    where: { id, roles: { has: Roles.Customer } },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      phone: true,
-      active: true,
-      createdAt: true,
-      gender: true,
-      wallet: { select: { balanceCents: true } },
-      _count: { select: { orders: true, chatConversations: true, supportTickets: true } },
-    },
-  });
+  const customer = await getSupportCustomer(id);
   if (!customer) notFound();
 
-  const [orders, conversations, tickets, feedback, reviews, spend] = await Promise.all([
-    db.order.findMany({
-      where: { userId: customer.id },
-      orderBy: { createdAt: "desc" },
-      take: 10,
-      select: {
-        id: true,
-        number: true,
-        status: true,
-        totalCents: true,
-        currencySymbol: true,
-        currencyCode: true,
-        paymentMethod: true,
-        createdAt: true,
-        items: { select: { quantity: true } },
-      },
-    }),
-    db.chatConversation.findMany({
-      where: { customerId: customer.id },
-      orderBy: { lastMessageAt: "desc" },
-      take: 6,
-      select: {
-        id: true,
-        subject: true,
-        status: true,
-        createdAt: true,
-        lastMessageAt: true,
-        agent: { select: { name: true } },
-      },
-    }),
-    db.supportTicket.findMany({
-      where: { customerId: customer.id },
-      orderBy: { lastActivityAt: "desc" },
-      take: 6,
-      select: {
-        id: true,
-        number: true,
-        subject: true,
-        status: true,
-        priority: true,
-        escalatedAt: true,
-        createdAt: true,
-        assignedTo: { select: { name: true } },
-      },
-    }),
-    db.feedback.findMany({
-      where: { userId: customer.id },
-      orderBy: { createdAt: "desc" },
-      take: 5,
-      select: { id: true, kind: true, message: true, rating: true, createdAt: true },
-    }),
-    db.review.findMany({
-      where: { userId: customer.id },
-      orderBy: { createdAt: "desc" },
-      take: 5,
-      select: {
-        id: true,
-        rating: true,
-        body: true,
-        status: true,
-        createdAt: true,
-        product: { select: { name: true } },
-      },
-    }),
-    db.order.aggregate({
-      where: { userId: customer.id, paidAt: { not: null } },
-      _sum: { totalCents: true },
-      _count: true,
-    }),
-  ]);
+  const { orders, conversations, tickets, feedback, reviews, spend } =
+    await listSupportCustomerHistory(customer.id);
 
   const openTickets = tickets.filter(
     (ticket) => ticket.status !== SupportTicketStatuses.Closed,

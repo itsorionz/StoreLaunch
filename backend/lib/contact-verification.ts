@@ -157,7 +157,7 @@ export async function confirmContactVerification(input: {
   return db.$transaction(async (tx) => {
     const lockKey = `${input.channel}:${target}`;
     await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))::text`;
-    await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${input.userId} FOR UPDATE`;
+    await tx.$queryRaw`SELECT id FROM "Users" WHERE id = ${input.userId} FOR UPDATE`;
     const challenge = await tx.contactVerificationOtp.findFirst({
       where: {
         id: input.challengeId,

@@ -1,6 +1,7 @@
 import { AccountStatusTargets, EntityStatuses } from "@backend/lib/enums.mjs";
+import { unstable_noStore } from "next/cache";
 import { AccountStatusToggle } from "@frontend/components/admin/account-status-toggle";
-import { db } from "@backend/lib/db";
+import { listDeliveryCompanies, listRiders } from "@backend/lib/admin-logistics-queries";
 import {
   DeleteRiderButton,
   DeleteDeliveryCompanyButton,
@@ -16,19 +17,8 @@ import { PageHeader } from "@frontend/components/admin/admin-ui";
 export const metadata = { title: "Delivery — Admin" };
 
 export default async function AdminDeliveryPage() {
-  const [riders, companies] = await Promise.all([
-    db.rider.findMany({
-      orderBy: { name: "asc" },
-      include: {
-        _count: { select: { orders: true } },
-        user: { select: { email: true, active: true } },
-      },
-    }),
-    db.deliveryCompany.findMany({
-      orderBy: { name: "asc" },
-      include: { _count: { select: { orders: true } } },
-    }),
-  ]);
+  unstable_noStore();
+  const [riders, companies] = await Promise.all([listRiders(), listDeliveryCompanies()]);
 
   return (
     <div className="animate-fade-up space-y-8">
@@ -53,20 +43,22 @@ export default async function AdminDeliveryPage() {
             {riders.map((r) => (
               <li
                 key={r.id}
-                className="flex flex-wrap items-center justify-between gap-2 px-5 py-3.5"
+                className={`flex flex-wrap items-center justify-between gap-2 px-5 py-3.5 ${
+                  !r.active ? "text-muted/60" : ""
+                }`}
               >
                 <div className="flex min-w-0 items-center gap-3">
                   <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-surface-2 text-xs font-bold text-muted">
                     {r.name.charAt(0).toUpperCase()}
                   </span>
                   <div className="min-w-0">
-                    <p className="truncate font-semibold">{r.name}</p>
+                    <p className={`truncate font-semibold ${!r.active ? "text-muted" : ""}`}>{r.name}</p>
                     {r.user && !r.user.active && (
                       <p className="text-xs text-accent">
                         Linked account is inactive; login and assignments blocked.
                       </p>
                     )}
-                    <p className="truncate text-xs text-muted">
+                    <p className={`truncate text-xs text-muted`}>
                       {r.phone} · {r.user?.email ?? "no login"} · {r._count.orders} orders
                     </p>
                   </div>
@@ -74,7 +66,7 @@ export default async function AdminDeliveryPage() {
                 <div className="flex shrink-0 items-center gap-1">
                   <span
                     className={`mr-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                      r.active ? "bg-primary/15 text-primary" : "bg-muted text-muted"
+                      r.active ? "bg-primary/15 text-primary" : "bg-muted/30 text-muted/80 border border-muted/40"
                     }`}
                   >
                     {r.active ? EntityStatuses.Active : EntityStatuses.Inactive}

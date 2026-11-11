@@ -6,11 +6,11 @@ import { Roles } from "./enums.mjs";
  * (importing next/navigation from a node:test process is not possible).
  */
 
-/** Roles allowed into /admin — strictly the back-office owner. */
-export const ADMIN_ROLES = [Roles.Admin] as const;
+/** Roles allowed into /admin — the back-office owner and platform super admins. */
+export const ADMIN_ROLES = [Roles.Admin, Roles.SuperAdmin] as const;
 
 /** Roles allowed into /hrm — Admin plus the Manager who runs the HRM suite. */
-export const HRM_ROLES = [Roles.Admin, Roles.Manager] as const;
+export const HRM_ROLES = [Roles.Admin, Roles.Manager, Roles.SuperAdmin] as const;
 
 function includesRole(roles: readonly string[], role: unknown): boolean {
   return typeof role === "string" && roles.includes(role);

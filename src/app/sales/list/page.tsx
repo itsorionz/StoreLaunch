@@ -1,8 +1,6 @@
 import Link from "next/link";
 import { requireSalesPage } from "@backend/lib/session";
-import { db } from "@backend/lib/db";
-import { bdStartOfDay } from "@backend/lib/admin-dashboard-periods";
-import { OrderSources } from "@backend/lib/enums.mjs";
+import { listSalesOrders } from "@backend/lib/sales-queries";
 
 export const metadata = { title: "Sales" };
 
@@ -20,25 +18,7 @@ export default async function SalesListPage({
   const { filter } = await searchParams;
   const active = FILTERS.some((f) => f.key === filter) ? filter! : "today";
 
-  const orders = await db.order.findMany({
-    where: {
-      source: OrderSources.SalesRep,
-      ...(active === "today" ? { createdAt: { gte: bdStartOfDay() } } : {}),
-    },
-    orderBy: { createdAt: "desc" },
-    take: 100,
-    select: {
-      number: true,
-      status: true,
-      totalCents: true,
-      currencySymbol: true,
-      recipientName: true,
-      phone: true,
-      paymentMethod: true,
-      paidAt: true,
-      createdAt: true,
-    },
-  });
+  const orders = await listSalesOrders(active);
 
   return (
     <div className="space-y-6">

@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { useRouter } from "next/navigation";
 import { markPicked, pickItem, type AdminActionResult } from "@backend/actions/admin";
+import { ActionResultToast } from "@frontend/components/ui/validated-form";
 
 const EMPTY: AdminActionResult | null = null;
 
@@ -29,13 +30,19 @@ export function PickLineForm({
     EMPTY,
   );
 
+  // The toast renders in both branches: after a pick the line flips to
+  // `lineLocked` on refresh, and the confirmation must still surface.
   if (lineLocked)
     return (
-      <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">Picked</span>
+      <>
+        <ActionResultToast result={state} successMessage="Pick recorded." />
+        <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">Picked</span>
+      </>
     );
 
   return (
     <form action={formAction} className="flex flex-wrap items-center gap-2">
+      <ActionResultToast result={state} successMessage="Pick recorded." />
       <label className="text-xs text-muted">
         Picked
         <input
@@ -88,6 +95,7 @@ export function MarkPickedButton({ pickListId }: { pickListId: string }) {
   );
   return (
     <form action={formAction}>
+      <ActionResultToast result={state} successMessage="Order marked picked." />
       <button
         type="submit"
         disabled={pending}

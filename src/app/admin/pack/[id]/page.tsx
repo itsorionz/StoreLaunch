@@ -1,4 +1,4 @@
-import { db } from "@backend/lib/db";
+import { getPickListDetail } from "@backend/lib/admin-orders-queries";
 import {
   ConfirmPackLineButton,
   MarkPackedButton,
@@ -6,13 +6,7 @@ import {
 
 export default async function PackDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const pickList = await db.pickList.findUnique({
-    where: { id },
-    include: {
-      order: { select: { id: true, number: true } },
-      lines: { include: { orderItem: { include: { product: true } } } },
-    },
-  });
+  const pickList = await getPickListDetail(id);
 
   if (!pickList) {
     return (

@@ -302,6 +302,8 @@ export function SendPromotionButton({
             : `Promotion sent to ${result.count} customers`,
         );
         router.refresh();
+      } else if (result?.error) {
+        toast(result.error, "error");
       }
     });
   };

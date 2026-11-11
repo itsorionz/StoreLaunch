@@ -89,31 +89,33 @@ export default async function AdminInsightsPage() {
             </dl>
           </div>
           {signals.abandoned.topProducts.length ? (
-            <table className="w-full text-left text-sm">
-              <thead className="bg-surface-2 text-xs text-muted">
-                <tr>
-                  <th className="px-5 py-3">Product left behind</th>
-                  <th className="px-5 py-3 text-right">Units</th>
-                  <th className="px-5 py-3 text-right">Value</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {signals.abandoned.topProducts.map((product) => (
-                  <tr key={product.productId}>
-                    <td className="px-5 py-3">
-                      <Link
-                        href={`/admin/products/${product.productId}`}
-                        className="font-medium hover:text-primary"
-                      >
-                        {product.name}
-                      </Link>
-                    </td>
-                    <td className="px-5 py-3 text-right font-semibold">{product.units}</td>
-                    <td className="px-5 py-3 text-right">{money(product.valueCents)}</td>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[520px] text-left text-sm">
+                <thead className="bg-surface-2 text-xs text-muted">
+                  <tr>
+                    <th className="px-5 py-3">Product left behind</th>
+                    <th className="px-5 py-3 text-right">Units</th>
+                    <th className="px-5 py-3 text-right">Value</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {signals.abandoned.topProducts.map((product) => (
+                    <tr key={product.productId}>
+                      <td className="px-5 py-3">
+                        <Link
+                          href={`/admin/products/${product.productId}`}
+                          className="font-medium hover:text-primary"
+                        >
+                          {product.name}
+                        </Link>
+                      </td>
+                      <td className="px-5 py-3 text-right font-semibold">{product.units}</td>
+                      <td className="px-5 py-3 text-right">{money(product.valueCents)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           ) : (
             <p className="px-5 py-8 text-center text-sm text-muted">
               No abandoned carts right now — every started cart became an order.

@@ -75,7 +75,7 @@ export async function startConversation(
   if (!parsed.success) return { ok: false, ...validationFailure(parsed.error) };
   const { subject, body, orderId } = parsed.data;
   return db.$transaction(async (tx) => {
-    await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${actor.id} FOR UPDATE`;
+    await tx.$queryRaw`SELECT id FROM "Users" WHERE id = ${actor.id} FOR UPDATE`;
     if (orderId) {
       const order = await tx.order.findFirst({
         where: { id: orderId, userId: actor.id },
@@ -335,7 +335,8 @@ function toPreview(conversation: PreviewRow, numbers: Map<string, string>): Chat
 // Agent queue: every open thread, unassigned first, then mine, then other
 // agents'. Unread counts cover unassigned threads plus the agent's own.
 export async function listOpenConversations(actor: ChatActor): Promise<QueueItem[]> {
-  if (actor.role !== Roles.Support) return [];
+  if (actor.role !== Roles.Support && actor.role !== Roles.Admin && actor.role !== Roles.SuperAdmin)
+    return [];
   const conversations = await db.chatConversation.findMany({
     where: { status: ChatConversationStatuses.Open },
     orderBy: { lastMessageAt: "desc" },
@@ -465,6 +466,21 @@ export async function listClosedConversations(
   });
   const numbers = await orderNumberMap(rows.map((conversation) => conversation.orderId));
   return { items: rows.map((conversation) => toPreview(conversation, numbers)), total, pages };
+}
+
+export type ChatOrderRef = { id: string; number: string };
+
+// Minimal, ownership-checked order reference for the chat composer: only orders
+// belonging to the signed-in customer are resolved, so a stray ?order= value can
+// never attach a conversation to someone else's order.
+export async function findCustomerChatOrder(
+  userId: string,
+  orderNumber: string,
+): Promise<ChatOrderRef | null> {
+  return db.order.findFirst({
+    where: { number: orderNumber, userId },
+    select: { id: true, number: true },
+  });
 }
 
 // Customers count unread service replies; agents count unread customer messages

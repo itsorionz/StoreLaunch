@@ -124,3 +124,26 @@ export function encodeCode39(value: string): Code39Encoding | null {
 export function isCode39Encodable(value: string): boolean {
   return encodeCode39(value)?.text === (value ?? "").toUpperCase();
 }
+
+/**
+ * Check digit for a 12-digit EAN-13 body (GS1 mod-10, weights 1/3 alternating
+ * from the left). Exported so tests can verify against published examples.
+ */
+export function ean13CheckDigit(twelveDigits: string): number {
+  const digits = twelveDigits.split("").map(Number);
+  const sum = digits.reduce((total, digit, index) => total + digit * (index % 2 === 0 ? 1 : 3), 0);
+  return (10 - (sum % 10)) % 10;
+}
+
+/**
+ * Generates a unique-looking product barcode: a valid EAN-13 value with the
+ * GS1 "2" prefix reserved for in-store use. Printed as Code 39 on labels and
+ * matched by POS/warehouse scanners via exact or prefix search.
+ */
+export function generateBarcodeValue(): string {
+  const bytes = new Uint8Array(11);
+  globalThis.crypto.getRandomValues(bytes);
+  let body = "2";
+  for (const byte of bytes) body += String(byte % 10);
+  return body + ean13CheckDigit(body);
+}

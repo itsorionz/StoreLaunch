@@ -1,12 +1,13 @@
 import { EntityStatuses } from "@backend/lib/enums.mjs";
 import Image from "next/image";
 import Link from "next/link";
-import { db } from "@backend/lib/db";
+import { getProductsList } from "@backend/lib/products-queries";
 import { getStoreSettings } from "@backend/lib/settings";
 import { formatPrice, effectivePriceCents, discountPercent } from "@backend/lib/money";
 import { DeleteProductButton } from "@frontend/components/admin/delete-buttons";
 import { AddProductModal, EditProductModal } from "@frontend/components/admin/add-product-modal";
 import { PageHeader, StatusBadge } from "@frontend/components/admin/admin-ui";
+import { BarcodeIcon } from "@frontend/components/admin/action-icons";
 
 export const metadata = { title: "Products — Admin" };
 
@@ -17,18 +18,9 @@ export default async function AdminProductsPage({
 }) {
   const stock = (await searchParams).stock;
   const stockFilter = stock === "low" || stock === "out" ? stock : null;
-  const [products, settings, categories, brands] = await Promise.all([
-    db.product.findMany({
-      where: stockFilter ? { active: true, stock: stockFilter === "out" ? 0 : { lte: 5 } } : {},
-      orderBy: { createdAt: "desc" },
-      include: { category: true, brand: true },
-    }),
+  const [{ products, categories, brands }, settings] = await Promise.all([
+    getProductsList({ stock: stockFilter }),
     getStoreSettings(),
-    db.category.findMany({
-      orderBy: [{ order: "asc" }, { name: "asc" }],
-      select: { id: true, name: true, parentId: true },
-    }),
-    db.brand.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
   ]);
 
   return (
@@ -36,7 +28,15 @@ export default async function AdminProductsPage({
       <PageHeader
         title="Products"
         subtitle={`${products.length} products in catalog`}
-        action={<AddProductModal categories={categories} brands={brands} />}
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            <Link href="/admin/products/print-barcodes" className="btn btn-outline">
+              <BarcodeIcon size={15} />
+              Print barcodes
+            </Link>
+            <AddProductModal categories={categories} brands={brands} />
+          </div>
+        }
       />
       {stockFilter && (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm">
@@ -81,17 +81,18 @@ export default async function AdminProductsPage({
                       </span>
                       <div>
                         <p className="line-clamp-1 max-w-64 font-semibold">{p.name}</p>
-                        {p.sku && (
+                        {(p.sku || p.barcode) && (
                           <p className="font-mono text-[11px] text-muted">
                             {p.sku}
-                            {p.barcode ? ` · ${p.barcode}` : ""}
+                            {p.sku && p.barcode ? " · " : ""}
+                            {p.barcode}
                           </p>
                         )}
-                        {p.brand && <p className="text-xs text-muted">{p.brand.name}</p>}
+                        {p.brandName && <p className="text-xs text-muted">{p.brandName}</p>}
                       </div>
                     </div>
                   </td>
-                  <td className="px-5 py-3.5 text-muted">{p.category.name}</td>
+                  <td className="px-5 py-3.5 text-muted">{p.categoryName}</td>
                   <td className="px-5 py-3.5">
                     <span className="font-semibold">
                       {formatPrice(
@@ -122,6 +123,16 @@ export default async function AdminProductsPage({
                   </td>
                   <td className="px-5 py-3.5">
                     <div className="flex items-center justify-end gap-1">
+                      {p.barcode && (
+                        <Link
+                          href={`/admin/products/print-barcodes?ids=${p.id}`}
+                          aria-label={`Print barcode label for ${p.name}`}
+                          title="Print barcode label"
+                          className="btn-icon text-muted transition-colors hover:bg-surface-2 hover:text-foreground"
+                        >
+                          <BarcodeIcon size={16} />
+                        </Link>
+                      )}
                       <EditProductModal
                         product={{
                           id: p.id,

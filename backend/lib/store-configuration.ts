@@ -13,6 +13,9 @@ import {
   fieldFailure,
 } from "./form-validation";
 import { saveResizedLogoImage } from "./upload-image";
+import { logger } from "./logger";
+
+const log = logger.child({ scope: "store-configuration" });
 
 export const settingsSchema = z.object({
   referralEnabled: z.preprocess(
@@ -124,6 +127,7 @@ export async function saveStoreConfiguration(
     try {
       uploadedLogoUrl = await saveResizedLogoImage(logoFile);
     } catch (error) {
+      log.warn("store logo rejected", { error });
       return {
         ok: false,
         ...fieldFailure(

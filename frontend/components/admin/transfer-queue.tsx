@@ -7,6 +7,7 @@ import {
   receiveStockTransfer,
   type TransferActionResult,
 } from "@backend/actions/transfers";
+import { useToast } from "@frontend/components/ui/toast";
 
 export type TransferRow = {
   id: string;
@@ -38,6 +39,7 @@ function formatDate(value: string | null): string {
 }
 
 export function TransferQueue({ transfers }: { transfers: TransferRow[] }) {
+  const toast = useToast();
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -47,15 +49,23 @@ export function TransferQueue({ transfers }: { transfers: TransferRow[] }) {
       prev: TransferActionResult | null,
       formData: FormData,
     ) => Promise<TransferActionResult>,
+    successMessage: string,
   ) => {
     setBusyId(id);
     setError(null);
     const formData = new FormData();
     formData.set("id", id);
     const result = await action(null, formData);
-    if (!result.ok) setError(result.error ?? "Could not update the transfer");
     setBusyId(null);
-    if (result.ok) window.location.reload();
+    if (!result.ok) {
+      const message = result.error ?? "Could not update the transfer";
+      setError(message);
+      toast.error(message);
+      return;
+    }
+    toast.success(successMessage);
+    // Let the confirmation land before the reload wipes the toast stack.
+    setTimeout(() => window.location.reload(), 900);
   };
 
   return (
@@ -115,7 +125,9 @@ export function TransferQueue({ transfers }: { transfers: TransferRow[] }) {
                       <button
                         type="button"
                         disabled={busyId === t.id}
-                        onClick={() => void run(t.id, dispatchStockTransfer)}
+                        onClick={() =>
+                          void run(t.id, dispatchStockTransfer, "Transfer dispatched.")
+                        }
                         className="btn btn-sm btn-primary"
                       >
                         Dispatch
@@ -123,7 +135,7 @@ export function TransferQueue({ transfers }: { transfers: TransferRow[] }) {
                       <button
                         type="button"
                         disabled={busyId === t.id}
-                        onClick={() => void run(t.id, cancelStockTransfer)}
+                        onClick={() => void run(t.id, cancelStockTransfer, "Transfer cancelled.")}
                         className="btn btn-sm btn-outline"
                       >
                         Cancel
@@ -135,7 +147,7 @@ export function TransferQueue({ transfers }: { transfers: TransferRow[] }) {
                       <button
                         type="button"
                         disabled={busyId === t.id}
-                        onClick={() => void run(t.id, receiveStockTransfer)}
+                        onClick={() => void run(t.id, receiveStockTransfer, "Transfer received.")}
                         className="btn btn-sm btn-primary"
                       >
                         Receive
@@ -143,7 +155,7 @@ export function TransferQueue({ transfers }: { transfers: TransferRow[] }) {
                       <button
                         type="button"
                         disabled={busyId === t.id}
-                        onClick={() => void run(t.id, cancelStockTransfer)}
+                        onClick={() => void run(t.id, cancelStockTransfer, "Transfer cancelled.")}
                         className="btn btn-sm btn-outline"
                       >
                         Cancel

@@ -3,6 +3,9 @@ import { Prisma } from "@backend/generated/prisma/client";
 import { CodSettlementMethods, OrderEventTypes, OrderStatuses, Roles } from "./enums.mjs";
 import { db } from "./db";
 import { recordOrderEvent, type OrderActor } from "./order-events";
+import { logger } from "./logger";
+
+const log = logger.child({ scope: "cod-settlement" });
 
 export type CodSettlementLineInput = {
   collectionId: string;
@@ -24,7 +27,7 @@ export async function createCodSettlement(
   },
   actor: OrderActor,
 ): Promise<CodSettlementResult> {
-  if (actor.role !== Roles.Admin)
+  if (actor.role !== Roles.Admin && actor.role !== Roles.SuperAdmin)
     return { ok: false, error: "Only an admin can record a COD settlement" };
   const reference = input.reference.trim();
   if (reference.length < 3 || reference.length > 120 || (input.note?.trim().length ?? 0) > 500)
@@ -225,8 +228,11 @@ export async function createCodSettlement(
       return { ok: true, settlementId: settlement.id } as const;
     });
   } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002")
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      log.warn("createCodSettlement rejected", { code: "P2002", reference: input.reference });
       return { ok: false, error: "This receipt reference has already been recorded" };
+    }
+    log.error("createCodSettlement failed", { error, reference: input.reference });
     throw error;
   }
 }

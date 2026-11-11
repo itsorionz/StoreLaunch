@@ -1,22 +1,17 @@
-import { db } from "@backend/lib/db";
+import {
+  listActiveWarehouses,
+  listDeliveryHubOptions,
+  listDeliveryZones,
+} from "@backend/lib/admin-logistics-queries";
 import { DeliveryZoneAdmin } from "@frontend/components/admin/delivery-zone-admin";
 
 export const metadata = { title: "Delivery zones" };
 
 export default async function DeliveryZonesPage() {
   const [zones, warehouses, hubs] = await Promise.all([
-    db.deliveryZone.findMany({
-      orderBy: { name: "asc" },
-    }),
-    db.warehouse.findMany({
-      where: { active: true },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true, code: true },
-    }),
-    db.deliveryHub.findMany({
-      orderBy: [{ isDefault: "desc" }, { name: "asc" }],
-      select: { id: true, name: true, code: true },
-    }),
+    listDeliveryZones(),
+    listActiveWarehouses(),
+    listDeliveryHubOptions(),
   ]);
 
   return (

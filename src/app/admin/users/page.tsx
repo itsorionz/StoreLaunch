@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { z } from "zod";
-import { db } from "@backend/lib/db";
+import { searchUsers } from "@backend/lib/users-queries";
 import { requireAdminPage } from "@backend/lib/session";
 import { EntityStatuses, Roles } from "@backend/lib/enums.mjs";
 import { PageHeader, StatusBadge } from "@frontend/components/admin/admin-ui";
 import { AccountStatusToggle } from "@frontend/components/admin/account-status-toggle";
-import { AddSupportAgentModal } from "@frontend/components/admin/add-support-agent-modal";
+import { AddUserModal, UserRolesModal } from "@frontend/components/admin/user-role-manager";
 
 export const metadata = { title: "Accounts - Admin" };
 
@@ -26,33 +26,7 @@ export default async function AdminAccountsPage({
   const admin = await requireAdminPage();
   const parsed = filtersSchema.safeParse(await searchParams);
   const filters = parsed.success ? parsed.data : { q: "", role: "", status: "" };
-  const where = {
-    ...(filters.role ? { roles: { has: filters.role as typeof Roles.Admin } } : {}),
-    ...(filters.status ? { active: filters.status === EntityStatuses.Active } : {}),
-    ...(filters.q
-      ? {
-          OR: ["name", "email", "phone"].map((field) => ({
-            [field]: { contains: filters.q, mode: "insensitive" as const },
-          })),
-        }
-      : {}),
-  };
-  const [users, count, events] = await Promise.all([
-    db.user.findMany({
-      where,
-      orderBy: [{ createdAt: "desc" }, { id: "asc" }],
-      take: 200,
-      select: { id: true, name: true, email: true, phone: true, roles: true, active: true },
-    }),
-    db.user.count({ where }),
-    db.accountStatusEvent.findMany({ orderBy: { createdAt: "desc" }, take: 10 }),
-  ]);
-  const eventUserIds = events.flatMap((event) => (event.userId ? [event.userId] : []));
-  const eventRiderIds = events.flatMap((event) => (event.riderId ? [event.riderId] : []));
-  const [eventUsers, eventRiders] = await Promise.all([
-    db.user.findMany({ where: { id: { in: eventUserIds } }, select: { id: true, name: true } }),
-    db.rider.findMany({ where: { id: { in: eventRiderIds } }, select: { id: true, name: true } }),
-  ]);
+  const { users, count, events, eventUsers, eventRiders } = await searchUsers(filters);
   const names = new Map([...eventUsers, ...eventRiders].map((item) => [item.id, item.name]));
   return (
     <div className="space-y-5">
@@ -69,7 +43,9 @@ export default async function AdminAccountsPage({
           </Link>
           .
         </p>
-        <AddSupportAgentModal />
+        <div className="flex flex-wrap items-center gap-2">
+          <AddUserModal />
+        </div>
       </div>
       <form className="flex flex-wrap items-end gap-3" method="get">
         <label className="text-sm font-medium">
@@ -116,7 +92,7 @@ export default async function AdminAccountsPage({
         <table className="w-full min-w-[700px] text-left text-sm">
           <thead className="border-b border-border text-xs uppercase text-muted">
             <tr>
-              {["Name", "Email / Phone", "Roles", "Status", "Action"].map((heading) => (
+              {["Name", "Email / Phone", "Roles", "Status", "Actions"].map((heading) => (
                 <th key={heading} className="px-4 py-3">
                   {heading}
                 </th>
@@ -145,12 +121,18 @@ export default async function AdminAccountsPage({
                   />
                 </td>
                 <td className="px-4 py-3">
-                  <AccountStatusToggle
-                    key={String(user.active)}
-                    id={user.id}
-                    active={user.active}
-                    disabled={user.id === admin.id}
-                  />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <UserRolesModal
+                      user={{ id: user.id, name: user.name, email: user.email, roles: user.roles }}
+                      disabled={false}
+                    />
+                    <AccountStatusToggle
+                      key={String(user.active)}
+                      id={user.id}
+                      active={user.active}
+                      disabled={user.id === admin.id}
+                    />
+                  </div>
                 </td>
               </tr>
             ))}

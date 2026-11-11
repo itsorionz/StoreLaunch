@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { getCurrentUser } from "@backend/lib/session";
 import { Suspense } from "react";
 import Link from "next/link";
-import { db } from "@backend/lib/db";
+import { getOrderResultByNumber } from "@backend/lib/store-page-queries";
 import { formatPrice, orderCurrencyLabel } from "@backend/lib/money";
 
 export const metadata = { title: "Order Result" };
@@ -12,7 +12,7 @@ async function ResultContent({ params }: { params: Promise<{ number: string }> }
   const { number } = await params;
   const user = await getCurrentUser();
   if (!user) redirect(`/login?callbackUrl=${encodeURIComponent(`/order/${number}/result`)}`);
-  const order = await db.order.findUnique({ where: { number }, include: { items: true } });
+  const order = await getOrderResultByNumber(number);
   if (!order || (order.userId !== user.id && user.role !== Roles.Admin)) notFound();
 
   const fresh = order;

@@ -2,7 +2,7 @@ import { OrderStatuses } from "@backend/lib/enums.mjs";
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@backend/lib/session";
-import { db } from "@backend/lib/db";
+import { getAccountWalletBalance, listAccountOrderSummaries } from "@backend/lib/account-queries";
 import { getDict } from "@frontend/i18n/dict";
 import { getStoreSettings } from "@backend/lib/settings";
 import { formatPrice } from "@backend/lib/money";
@@ -14,17 +14,8 @@ async function ReportContent() {
   if (!user) redirect("/login?callbackUrl=/account/report");
 
   const [orders, wallet, dict, settings] = await Promise.all([
-    db.order.findMany({
-      where: { userId: user.id },
-      select: {
-        status: true,
-        paidAt: true,
-        currencyCode: true,
-        totalCents: true,
-        items: { select: { quantity: true } },
-      },
-    }),
-    db.wallet.findUnique({ where: { userId: user.id }, select: { balanceCents: true } }),
+    listAccountOrderSummaries(user.id),
+    getAccountWalletBalance(user.id),
     getDict(),
     getStoreSettings(),
   ]);

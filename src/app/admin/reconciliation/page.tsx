@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { requireAdminPage } from "@backend/lib/session";
-import { db } from "@backend/lib/db";
+import {
+  getUnremittedCodCollectionsCount,
+  listRecentCodSettlements,
+  listUnremittedCodCollections,
+} from "@backend/lib/admin-orders-queries";
 import {
   COD_AGING_BUCKETS,
   getCodReceivablesReport,
@@ -19,35 +23,13 @@ export default async function CodReconciliationPage({
 }) {
   await requireAdminPage();
   const query = await searchParams;
-  const total = await db.codCollection.count({ where: { remittedAt: null } });
+  const total = await getUnremittedCodCollectionsCount();
   const pages = Math.max(1, Math.ceil(total / 100));
   const page = Math.min(pages, Math.max(1, Math.floor(Number(query.page) || 1)));
   const now = new Date();
   const [collections, settlements, receivables, couriers] = await Promise.all([
-    db.codCollection.findMany({
-      where: { remittedAt: null },
-      orderBy: { collectedAt: "asc" },
-      skip: (page - 1) * 100,
-      take: 100,
-      include: {
-        settlementLines: { select: { appliedCents: true } },
-        order: {
-          select: {
-            number: true,
-            status: true,
-            deliveryCompanyId: true,
-            deliveryCompany: { select: { name: true } },
-          },
-        },
-      },
-    }),
-    db.codSettlement.findMany({
-      orderBy: { receivedAt: "desc" },
-      take: 50,
-      include: {
-        lines: { include: { codCollection: { select: { order: { select: { number: true } } } } } },
-      },
-    }),
+    listUnremittedCodCollections(page),
+    listRecentCodSettlements(),
     getCodReceivablesReport(now),
     getCourierReconciliationReport(now),
   ]);
@@ -219,132 +201,136 @@ export default async function CodReconciliationPage({
         </table>
       </section>
 
-      <section aria-label="Courier reconciliation report" className="card overflow-x-auto p-5">
+      <section aria-label="Courier reconciliation report" className="card p-5">
         <h2 className="font-bold">Courier reconciliation report</h2>
         <p className="mt-1 text-sm text-muted">
           Shipped vs delivered vs returned vs lost per carrier, with the COD cash trail. Lost =
           shipped over 14 days ago with no delivery or return outcome yet.
         </p>
-        <table className="mt-4 w-full min-w-[1000px] text-left text-sm">
-          <thead className="border-b border-border text-xs uppercase text-muted">
-            <tr>
-              <th className="p-2">Carrier</th>
-              <th className="p-2">Shipped</th>
-              <th className="p-2">In transit</th>
-              <th className="p-2">Delivered</th>
-              <th className="p-2">Returned</th>
-              <th className="p-2">Cancelled</th>
-              <th className="p-2">Lost</th>
-              <th className="p-2">Delivery / RTO rate</th>
-              <th className="p-2">COD collected → remitted</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {couriers.map((row) => (
-              <tr key={row.carrierId}>
-                <td className="p-2">
-                  <span className="font-semibold">{row.carrierName}</span>
-                  {!row.active && <span className="block text-xs text-muted">Inactive</span>}
-                </td>
-                <td className="p-2">{row.shippedCount}</td>
-                <td className="p-2">{row.inTransitCount}</td>
-                <td className="p-2">{row.deliveredCount}</td>
-                <td className="p-2">{row.returningCount}</td>
-                <td className="p-2">{row.cancelledCount}</td>
-                <td className={row.lostCount ? "p-2 font-bold text-accent" : "p-2"}>
-                  {row.lostCount}
-                </td>
-                <td className="p-2">
-                  {Math.round(row.deliveryRatePercent)}% / {Math.round(row.rtoRatePercent)}%
-                </td>
-                <td className="p-2">
-                  {row.cod.map((flow) => (
-                    <span key={flow.currencyCode} className="block">
-                      {money(flow.currencyCode, flow.collectedCents)} →{" "}
-                      {money(flow.currencyCode, flow.remittedCents)}
-                      {flow.outstandingCents > 0 &&
-                        ` · ${(flow.outstandingCents / 100).toFixed(2)} outstanding`}
-                    </span>
-                  ))}
-                  {!row.cod.length && <span className="text-muted">—</span>}
-                </td>
-              </tr>
-            ))}
-            {!couriers.length && (
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full min-w-[1000px] text-left text-sm">
+            <thead className="border-b border-border text-xs uppercase text-muted">
               <tr>
-                <td className="p-4 text-muted" colSpan={9}>
-                  No delivery companies are registered yet.
-                </td>
+                <th className="p-2">Carrier</th>
+                <th className="p-2">Shipped</th>
+                <th className="p-2">In transit</th>
+                <th className="p-2">Delivered</th>
+                <th className="p-2">Returned</th>
+                <th className="p-2">Cancelled</th>
+                <th className="p-2">Lost</th>
+                <th className="p-2">Delivery / RTO rate</th>
+                <th className="p-2">COD collected → remitted</th>
               </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {couriers.map((row) => (
+                <tr key={row.carrierId}>
+                  <td className="p-2">
+                    <span className="font-semibold">{row.carrierName}</span>
+                    {!row.active && <span className="block text-xs text-muted">Inactive</span>}
+                  </td>
+                  <td className="p-2">{row.shippedCount}</td>
+                  <td className="p-2">{row.inTransitCount}</td>
+                  <td className="p-2">{row.deliveredCount}</td>
+                  <td className="p-2">{row.returningCount}</td>
+                  <td className="p-2">{row.cancelledCount}</td>
+                  <td className={row.lostCount ? "p-2 font-bold text-accent" : "p-2"}>
+                    {row.lostCount}
+                  </td>
+                  <td className="p-2">
+                    {Math.round(row.deliveryRatePercent)}% / {Math.round(row.rtoRatePercent)}%
+                  </td>
+                  <td className="p-2">
+                    {row.cod.map((flow) => (
+                      <span key={flow.currencyCode} className="block">
+                        {money(flow.currencyCode, flow.collectedCents)} →{" "}
+                        {money(flow.currencyCode, flow.remittedCents)}
+                        {flow.outstandingCents > 0 &&
+                          ` · ${(flow.outstandingCents / 100).toFixed(2)} outstanding`}
+                      </span>
+                    ))}
+                    {!row.cod.length && <span className="text-muted">—</span>}
+                  </td>
+                </tr>
+              ))}
+              {!couriers.length && (
+                <tr>
+                  <td className="p-4 text-muted" colSpan={9}>
+                    No delivery companies are registered yet.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </section>
 
-      <section className="card overflow-x-auto p-5">
+      <section className="card p-5">
         <h2 className="font-bold">Settlement ledger</h2>
         <p className="mt-1 text-sm text-muted">
           Latest 50 settlement batches, including partial receipts and documented variances.
         </p>
-        <table className="mt-4 w-full min-w-[900px] text-left text-sm">
-          <thead className="border-b border-border text-xs uppercase text-muted">
-            <tr>
-              <th className="p-2">Date / reference</th>
-              <th className="p-2">Courier</th>
-              <th className="p-2">Method</th>
-              <th className="p-2">Expected</th>
-              <th className="p-2">Received</th>
-              <th className="p-2">Variance</th>
-              <th className="p-2">Order allocations</th>
-              <th className="p-2">Received by</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {settlements.map((batch) => (
-              <tr key={batch.id}>
-                <td className="p-2">
-                  {batch.receivedAt.toLocaleString("en-GB", { timeZone: "Asia/Dhaka" })}
-                  <span className="block text-xs text-muted">{batch.reference}</span>
-                </td>
-                <td className="p-2">
-                  {batch.courierName ?? <span className="text-muted">Mixed</span>}
-                </td>
-                <td className="p-2">{batch.method}</td>
-                <td className="p-2">
-                  {batch.currencyCode} {(batch.expectedCents / 100).toFixed(2)}
-                </td>
-                <td className="p-2">
-                  {batch.currencyCode} {(batch.receivedCents / 100).toFixed(2)}
-                </td>
-                <td className="p-2">
-                  {batch.currencyCode} {(batch.varianceCents / 100).toFixed(2)}
-                  {batch.varianceReason && (
-                    <span className="block text-xs text-muted">{batch.varianceReason}</span>
-                  )}
-                </td>
-                <td className="p-2">
-                  {batch.lines.map((line) => (
-                    <span key={line.id} className="block">
-                      #{line.codCollection.order.number}: expected {batch.currencyCode}{" "}
-                      {(line.expectedCents / 100).toFixed(2)}, received {batch.currencyCode}{" "}
-                      {(line.receivedCents / 100).toFixed(2)}, variance {batch.currencyCode}{" "}
-                      {(line.varianceCents / 100).toFixed(2)}
-                      {line.varianceReason ? ` — ${line.varianceReason}` : ""}
-                    </span>
-                  ))}
-                </td>
-                <td className="p-2">{batch.receivedByName}</td>
-              </tr>
-            ))}
-            {!settlements.length && (
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full min-w-[900px] text-left text-sm">
+            <thead className="border-b border-border text-xs uppercase text-muted">
               <tr>
-                <td className="p-4 text-muted" colSpan={8}>
-                  No settlements have been recorded yet.
-                </td>
+                <th className="p-2">Date / reference</th>
+                <th className="p-2">Courier</th>
+                <th className="p-2">Method</th>
+                <th className="p-2">Expected</th>
+                <th className="p-2">Received</th>
+                <th className="p-2">Variance</th>
+                <th className="p-2">Order allocations</th>
+                <th className="p-2">Received by</th>
               </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {settlements.map((batch) => (
+                <tr key={batch.id}>
+                  <td className="p-2">
+                    {batch.receivedAt.toLocaleString("en-GB", { timeZone: "Asia/Dhaka" })}
+                    <span className="block text-xs text-muted">{batch.reference}</span>
+                  </td>
+                  <td className="p-2">
+                    {batch.courierName ?? <span className="text-muted">Mixed</span>}
+                  </td>
+                  <td className="p-2">{batch.method}</td>
+                  <td className="p-2">
+                    {batch.currencyCode} {(batch.expectedCents / 100).toFixed(2)}
+                  </td>
+                  <td className="p-2">
+                    {batch.currencyCode} {(batch.receivedCents / 100).toFixed(2)}
+                  </td>
+                  <td className="p-2">
+                    {batch.currencyCode} {(batch.varianceCents / 100).toFixed(2)}
+                    {batch.varianceReason && (
+                      <span className="block text-xs text-muted">{batch.varianceReason}</span>
+                    )}
+                  </td>
+                  <td className="p-2">
+                    {batch.lines.map((line) => (
+                      <span key={line.id} className="block">
+                        #{line.codCollection.order.number}: expected {batch.currencyCode}{" "}
+                        {(line.expectedCents / 100).toFixed(2)}, received {batch.currencyCode}{" "}
+                        {(line.receivedCents / 100).toFixed(2)}, variance {batch.currencyCode}{" "}
+                        {(line.varianceCents / 100).toFixed(2)}
+                        {line.varianceReason ? ` — ${line.varianceReason}` : ""}
+                      </span>
+                    ))}
+                  </td>
+                  <td className="p-2">{batch.receivedById}</td>
+                </tr>
+              ))}
+              {!settlements.length && (
+                <tr>
+                  <td className="p-4 text-muted" colSpan={8}>
+                    No settlement batches yet.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </section>
     </div>
   );

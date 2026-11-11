@@ -17,6 +17,24 @@ export function PencilIcon({ size = 14 }: { size?: number }) {
   );
 }
 
+export function BarcodeIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M3 5v14M7 5v14M11 5v14M15 5v14M19 5v14M21 5v14" />
+    </svg>
+  );
+}
+
 export function TrashIcon({ size = 14 }: { size?: number }) {
   return (
     <svg

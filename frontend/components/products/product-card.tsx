@@ -21,6 +21,7 @@ export type ProductCardProps = {
     stock: number;
     images: string[];
     flashSale: boolean;
+    featured: boolean;
     brand: { name: string; nameBn?: string | null; slug: string } | null;
     ratingAvg: number;
     ratingCount: number;
@@ -87,7 +88,12 @@ export function ProductCard({
               {fmt(dict.product.off, { n: off })}
             </span>
           )}
-          {product.flashSale && !off && (
+          {product.featured && !off && (
+            <span className="badge-accent absolute left-2 top-2 z-10 shadow-sm">
+              {dict.product.new}
+            </span>
+          )}
+          {product.flashSale && !off && !product.featured && (
             <span className="badge-accent absolute left-2 top-2 z-10 shadow-sm">
               {dict.product.flash}
             </span>
@@ -152,7 +158,7 @@ export function ProductCard({
           }`}
         >
           {outOfStock ? (
-            <span className="text-[9px] font-black">{dict.product.out}</span>
+            <span className="text-[9px] font-black">Stock Out</span>
           ) : pending ? (
             "…"
           ) : added ? (
@@ -219,7 +225,9 @@ export function ProductCard({
           </div>
 
           <p className="text-xs text-muted">
-            {dict.product.inStock} · {fmt(dict.product.onlyLeft, { n: product.stock })}
+            {outOfStock
+              ? "Stock out"
+              : `${dict.product.inStock} · ${fmt(dict.product.onlyLeft, { n: product.stock })}`}
           </p>
 
           <div className="flex items-center justify-between border-t border-border pt-3 text-sm">

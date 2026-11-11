@@ -1,6 +1,11 @@
 import Link from "next/link";
 import { requireWarehousePage } from "@backend/lib/session";
-import { db } from "@backend/lib/db";
+import {
+  getPackQueueCount,
+  getOutOfStockLevelCount,
+  getPickQueueCount,
+  getReceiptCountSince,
+} from "@backend/lib/warehouse-queries";
 import { bdStartOfDay } from "@backend/lib/admin-dashboard-periods";
 import { getWarehouseParityReport } from "@backend/lib/warehouse-parity";
 import { getLowStockAlerts } from "@backend/lib/low-stock";
@@ -13,10 +18,10 @@ export default async function WarehouseHomePage() {
   const start = bdStartOfDay();
 
   const [picking, packed, receiptsToday, lowStock, parity, alerts] = await Promise.all([
-    db.pickList.count({ where: { status: "Picking" } }),
-    db.pickList.count({ where: { status: "Picked" } }),
-    db.receipt.count({ where: { receivedAt: { gte: start } } }),
-    db.stockLevel.count({ where: { qty: { lte: 0 }, minStock: { gt: 0 } } }),
+    getPickQueueCount(),
+    getPackQueueCount(),
+    getReceiptCountSince(start),
+    getOutOfStockLevelCount(),
     getWarehouseParityReport(),
     getLowStockAlerts(),
   ]);

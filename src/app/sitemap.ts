@@ -1,13 +1,10 @@
 import type { MetadataRoute } from "next";
-import { db } from "@backend/lib/db";
+import { getSitemapEntries } from "@backend/lib/catalog";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
 
-  const [products, categories] = await Promise.all([
-    db.product.findMany({ where: { active: true }, select: { slug: true, updatedAt: true } }),
-    db.category.findMany({ select: { slug: true } }),
-  ]);
+  const { products, categories } = await getSitemapEntries();
 
   return [
     { url: base, changeFrequency: "daily", priority: 1 },

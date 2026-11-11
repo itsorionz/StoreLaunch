@@ -7,6 +7,9 @@ import { createSalesOrder } from "../lib/sales-orders";
 import { requireSalesPage } from "../lib/session";
 import { canonicalPhone } from "../lib/otp";
 import { phoneNumber, personName } from "../lib/form-validation";
+import { logger } from "../lib/logger";
+
+const log = logger.child({ scope: "action:sales" });
 
 export type SalesActionResult = {
   ok: boolean;
@@ -134,7 +137,9 @@ export async function createSalesOrderAction(
       .min(1)
       .parse(JSON.parse(String(formData.get("lines") || "[]")));
     lines = parsed;
-  } catch {
+  } catch (error) {
+    // Malformed payload (client bug) is worth seeing; an empty sale is not.
+    log.debug("createSalesOrderAction lines rejected", { error });
     return { ok: false, error: "Add at least one product to the sale" };
   }
 

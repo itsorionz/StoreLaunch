@@ -1,7 +1,10 @@
 import Link from "next/link";
-import { db } from "@backend/lib/db";
+import {
+  getOpenAfterSalesRequestsCount,
+  listAfterSalesRequests,
+  listReturningToOriginOrders,
+} from "@backend/lib/admin-orders-queries";
 import { requireAdminPage } from "@backend/lib/session";
-import { AfterSalesStatuses, OrderStatuses } from "@backend/lib/enums.mjs";
 
 export const metadata = { title: "Returns and cancellations - Admin" };
 export default async function AfterSalesQueuePage({
@@ -11,45 +14,11 @@ export default async function AfterSalesQueuePage({
 }) {
   await requireAdminPage();
   const query = await searchParams;
-  const where = {
-    status: {
-      in: [
-        AfterSalesStatuses.Requested,
-        AfterSalesStatuses.Approved,
-        AfterSalesStatuses.Received,
-        AfterSalesStatuses.Inspected,
-      ],
-    },
-  };
-  const total = await db.afterSalesRequest.count({ where });
-  const returnToOriginOrders = await db.order.findMany({
-    where: { status: OrderStatuses.ReturningToOrigin },
-    select: {
-      id: true,
-      number: true,
-      recipientName: true,
-      shippedAt: true,
-      deliveryAttempts: {
-        orderBy: { createdAt: "desc" },
-        take: 1,
-        select: { createdAt: true, reason: true },
-      },
-    },
-    orderBy: { shippedAt: "asc" },
-  });
+  const total = await getOpenAfterSalesRequestsCount();
+  const returnToOriginOrders = await listReturningToOriginOrders();
   const pages = Math.max(1, Math.ceil(total / 50));
   const page = Math.min(pages, Math.max(1, Math.floor(Number(query.page) || 1)));
-  const requests = await db.afterSalesRequest.findMany({
-    where,
-    include: {
-      order: { select: { number: true } },
-      user: { select: { name: true } },
-      items: { include: { orderItem: { select: { name: true } } } },
-    },
-    orderBy: [{ requestedAt: "asc" }, { id: "asc" }],
-    skip: (page - 1) * 50,
-    take: 50,
-  });
+  const requests = await listAfterSalesRequests(page);
   return (
     <div>
       <h1 className="text-2xl font-bold">Returns, replacements and cancellations</h1>

@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import { receiveStockTransfer, type TransferActionResult } from "@backend/actions/transfers";
+import { useToast } from "@frontend/components/ui/toast";
 
 export function ReceiveTransferButton({ id }: { id: string }) {
+  const toast = useToast();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -13,9 +15,13 @@ export function ReceiveTransferButton({ id }: { id: string }) {
     const formData = new FormData();
     formData.set("id", id);
     const result: TransferActionResult = await receiveStockTransfer(null, formData);
-    if (result.ok) window.location.reload();
-    else {
-      setError(result.error ?? "Could not receive the transfer");
+    if (result.ok) {
+      toast("Transfer received.");
+      setTimeout(() => window.location.reload(), 900);
+    } else {
+      const message = result.error ?? "Could not receive the transfer";
+      setError(message);
+      toast(message, "error");
       setBusy(false);
     }
   };

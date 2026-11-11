@@ -1,9 +1,8 @@
-import { ReviewStatuses } from "@backend/lib/enums.mjs";
 import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@backend/lib/session";
-import { db } from "@backend/lib/db";
+import { getApprovedReviewStats } from "@backend/lib/account-queries";
 import { getDict } from "@frontend/i18n/dict";
 
 export const metadata = { title: "Rate Us" };
@@ -12,14 +11,7 @@ async function RateContent() {
   const user = await getCurrentUser();
   if (!user) redirect("/login?callbackUrl=/account/rate");
 
-  const [agg, dict] = await Promise.all([
-    db.review.aggregate({
-      where: { status: ReviewStatuses.Approved },
-      _avg: { rating: true },
-      _count: true,
-    }),
-    getDict(),
-  ]);
+  const [agg, dict] = await Promise.all([getApprovedReviewStats(), getDict()]);
 
   const avg = agg._avg.rating ?? 0;
   const stars = Math.round(avg);

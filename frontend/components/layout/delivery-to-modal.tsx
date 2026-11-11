@@ -12,6 +12,7 @@ import {
   type AccountActionResult,
 } from "@backend/actions/account";
 import { Modal } from "@frontend/components/ui/modal";
+import { useToast } from "@frontend/components/ui/toast";
 import { useDict } from "@frontend/i18n/provider";
 
 type Addr = {
@@ -35,6 +36,7 @@ export function DeliveryToTrigger({
   signedIn: boolean;
 }) {
   const dict = useDict();
+  const toast = useToast();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [chooseError, setChooseError] = useState<string | null>(null);
@@ -60,8 +62,14 @@ export function DeliveryToTrigger({
   function choose(id: string | null) {
     startTransition(async () => {
       const result = await selectDeliveryAddress(id);
-      setChooseError(result.error ?? null);
-      if (result.ok) setOpen(false);
+      const message = result.error ?? null;
+      setChooseError(message);
+      if (!result.ok) {
+        toast(message ?? "Could not update delivery address.", "error");
+        return;
+      }
+      toast("Delivery address updated.");
+      setOpen(false);
     });
   }
 

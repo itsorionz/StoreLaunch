@@ -1,5 +1,8 @@
 import "server-only";
 import { canonicalPhone } from "./phone";
+import { logger } from "./logger";
+
+const log = logger.child({ scope: "sms" });
 
 /** True means accepted by the gateway, not confirmed delivery to the handset. */
 export async function sendSms(to: string | null | undefined, text: string): Promise<boolean> {
@@ -85,8 +88,10 @@ export async function sendSms(to: string | null | undefined, text: string): Prom
       const data = (await response.json()) as { success?: boolean; accepted?: boolean };
       return data.success === true || data.accepted === true;
     }
-  } catch {
-    // Do not log keys, recipient numbers, OTPs or provider response bodies.
+  } catch (error) {
+    // Do not log keys, recipient numbers, OTPs or provider response bodies —
+    // provider name only, so a gateway outage is still diagnosable.
+    log.warn("sms send failed", { error, provider });
     return false;
   }
   return false;

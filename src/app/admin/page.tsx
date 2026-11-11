@@ -1,12 +1,13 @@
-import { OrderStatuses, ReviewStatuses } from "@backend/lib/enums.mjs";
+import { OrderStatuses, ReviewStatuses, Roles } from "@backend/lib/enums.mjs";
 import { requireAdminPage } from "@backend/lib/session";
+import { getCurrentUser } from "@backend/lib/session";
 import Link from "next/link";
 import { getStoreSettings } from "@backend/lib/settings";
 import { getAdminDashboard } from "@backend/lib/admin-dashboard";
 import { dashboardChange } from "@backend/lib/admin-dashboard-periods";
 import { getWarehouseCards, getDeliveryScorecard } from "@backend/lib/ops-intelligence";
 import { getProfitSnapshot, getMoneyPosition, getLicenseStatus } from "@backend/lib/owner-insights";
-import { db } from "@backend/lib/db";
+import { getDefaultWarehouseId } from "@backend/lib/warehouse-queries";
 import { formatPrice, orderCurrencyLabel } from "@backend/lib/money";
 import { StatusBadge } from "@frontend/components/admin/admin-ui";
 import { DashboardChart } from "@frontend/components/admin/dashboard-chart";
@@ -22,8 +23,9 @@ export default async function AdminOverviewPage({
   await requireAdminPage();
   const settings = await getStoreSettings();
   const params = await searchParams;
-  const defaultWarehouse = await db.warehouse.findFirst({ where: { isDefault: true } });
-  const warehouseId = defaultWarehouse?.id;
+  const warehouseId = await getDefaultWarehouseId();
+  const user = await getCurrentUser();
+  const isSuperAdmin = user?.role === Roles.SuperAdmin;
   const [data, warehouseCards, deliveryScore, profit, moneyPos, license] = await Promise.all([
     getAdminDashboard(settings.currencyCode, params.range),
     warehouseId ? getWarehouseCards(warehouseId) : null,
@@ -46,7 +48,7 @@ export default async function AdminOverviewPage({
 
   return (
     <div className="animate-fade-up space-y-6" data-admin-dashboard>
-      {license.state !== "active" && (
+      {!isSuperAdmin && license?.state !== "active" && (
         <div
           data-admin-license-banner
           className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-accent/40 bg-accent/10 px-5 py-4"

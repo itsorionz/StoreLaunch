@@ -1,23 +1,12 @@
 import Link from "next/link";
 import { requireWarehousePage } from "@backend/lib/session";
-import { db } from "@backend/lib/db";
+import { listPrintableOrders } from "@backend/lib/warehouse-queries";
 
 export const metadata = { title: "Print" };
 
 export default async function WarehousePrintPage() {
   await requireWarehousePage();
-  const orders = await db.order.findMany({
-    where: { status: { in: ["Packing", "Packed"] } },
-    select: {
-      number: true,
-      status: true,
-      recipientName: true,
-      city: true,
-      createdAt: true,
-    },
-    orderBy: { createdAt: "asc" },
-    take: 100,
-  });
+  const orders = await listPrintableOrders();
 
   return (
     <div className="space-y-6">

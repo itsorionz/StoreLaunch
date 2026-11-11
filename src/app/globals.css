@@ -49,12 +49,35 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/* Horizontal rows: no visible scrollbar (incl. while middle-button autoscroll pans). */
+@utility scrollbar-hidden {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  overflow-x: clip;
+}
+
+img,
+svg,
+video,
+canvas {
+  max-width: 100%;
+}
+
+@layer base {
+  table {
+    max-width: 100%;
+  }
 }
 
 html[lang="bn"] body {
@@ -116,6 +139,19 @@ html[lang="bn"] body {
   .badge-muted {
     @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold bg-surface-2 text-muted;
   }
+}
+
+/* Splash preloader: auto-dismiss if hydration never runs (e.g. JS blocked),
+   so the page can never stay trapped behind the overlay. */
+@keyframes preloader-failsafe {
+  to {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+}
+.preloader-failsafe {
+  animation: preloader-failsafe 0.3s ease 6s forwards;
 }
 
 /* Skeleton shimmer */

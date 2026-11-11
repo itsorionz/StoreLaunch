@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { requireWarehousePage } from "@backend/lib/session";
-import { db } from "@backend/lib/db";
+import {
+  listActiveWarehousesWithCode,
+  listOpenStockTransfers,
+  listStockLevels,
+} from "@backend/lib/warehouse-queries";
 import { ReceiveTransferButton } from "@frontend/components/warehouse/receive-transfer-button";
 
 export const metadata = { title: "Stock" };
@@ -13,27 +17,13 @@ export default async function WarehouseStockPage({
   await requireWarehousePage();
   const { warehouse } = await searchParams;
 
-  const warehouses = await db.warehouse.findMany({
-    where: { active: true },
-    orderBy: [{ isDefault: "desc" }, { name: "asc" }],
-    select: { id: true, name: true, code: true, isDefault: true },
-  });
+  const warehouses = await listActiveWarehousesWithCode();
   const selected =
     warehouses.find((w) => w.id === warehouse) ??
     warehouses.find((w) => w.isDefault) ??
     warehouses[0];
 
-  const levels = selected
-    ? await db.stockLevel.findMany({
-        where: { warehouseId: selected.id },
-        include: {
-          product: {
-            select: { name: true, sku: true, barcode: true, stock: true, costCents: true },
-          },
-        },
-        orderBy: { product: { name: "asc" } },
-      })
-    : [];
+  const levels = selected ? await listStockLevels(selected.id) : [];
 
   const valueCents = levels.reduce(
     (sum, level) => sum + level.qty * (level.product.costCents ?? 0),
@@ -42,20 +32,7 @@ export default async function WarehouseStockPage({
 
   // In-transit visibility: transfers headed here awaiting receipt, plus this
   // warehouse's own open outbound requests.
-  const openTransfers = selected
-    ? await db.stockTransfer.findMany({
-        where: {
-          status: { in: ["Pending", "InTransit"] },
-          OR: [{ toWarehouseId: selected.id }, { fromWarehouseId: selected.id }],
-        },
-        orderBy: { requestedAt: "asc" },
-        include: {
-          product: { select: { name: true, sku: true } },
-          fromWarehouse: { select: { name: true } },
-          toWarehouse: { select: { name: true } },
-        },
-      })
-    : [];
+  const openTransfers = selected ? await listOpenStockTransfers(selected.id) : [];
 
   return (
     <div className="space-y-6">
@@ -147,56 +124,58 @@ export default async function WarehouseStockPage({
               In-transit stock for this route. Receive an incoming transfer to add it to stock.
             </p>
           </div>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted">
-                <th className="px-4 py-2.5 font-semibold">Product</th>
-                <th className="px-4 py-2.5 font-semibold">Route</th>
-                <th className="px-4 py-2.5 text-right font-semibold">Qty</th>
-                <th className="px-4 py-2.5 font-semibold">Status</th>
-                <th className="px-4 py-2.5 text-right font-semibold">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {openTransfers.map((t) => {
-                const incoming = t.toWarehouseId === selected?.id;
-                return (
-                  <tr key={t.id} className="border-b border-border/50 last:border-0">
-                    <td className="px-4 py-2.5 font-semibold">
-                      {t.product.name}
-                      <span className="block font-mono text-xs text-muted">
-                        {t.product.sku ?? "—"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2.5">
-                      {t.fromWarehouse.name} → {t.toWarehouse.name}
-                    </td>
-                    <td className="px-4 py-2.5 text-right font-bold">{t.qty}</td>
-                    <td className="px-4 py-2.5">
-                      <span
-                        className={`rounded px-2 py-1 text-xs font-medium ${
-                          t.status === "InTransit"
-                            ? "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300"
-                            : "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
-                        }`}
-                      >
-                        {t.status === "InTransit" ? "In transit" : "Awaiting dispatch"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2.5 text-right">
-                      {incoming && t.status === "InTransit" ? (
-                        <ReceiveTransferButton id={t.id} />
-                      ) : (
-                        <span className="text-xs text-muted">
-                          {incoming ? "Awaiting admin dispatch" : "Outbound"}
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[560px] text-sm">
+              <thead>
+                <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted">
+                  <th className="px-4 py-2.5 font-semibold">Product</th>
+                  <th className="px-4 py-2.5 font-semibold">Route</th>
+                  <th className="px-4 py-2.5 text-right font-semibold">Qty</th>
+                  <th className="px-4 py-2.5 font-semibold">Status</th>
+                  <th className="px-4 py-2.5 text-right font-semibold">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {openTransfers.map((t) => {
+                  const incoming = t.toWarehouseId === selected?.id;
+                  return (
+                    <tr key={t.id} className="border-b border-border/50 last:border-0">
+                      <td className="px-4 py-2.5 font-semibold">
+                        {t.product.name}
+                        <span className="block font-mono text-xs text-muted">
+                          {t.product.sku ?? "—"}
                         </span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                      </td>
+                      <td className="px-4 py-2.5">
+                        {t.fromWarehouse.name} → {t.toWarehouse.name}
+                      </td>
+                      <td className="px-4 py-2.5 text-right font-bold">{t.qty}</td>
+                      <td className="px-4 py-2.5">
+                        <span
+                          className={`rounded px-2 py-1 text-xs font-medium ${
+                            t.status === "InTransit"
+                              ? "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300"
+                              : "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
+                          }`}
+                        >
+                          {t.status === "InTransit" ? "In transit" : "Awaiting dispatch"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2.5 text-right">
+                        {incoming && t.status === "InTransit" ? (
+                          <ReceiveTransferButton id={t.id} />
+                        ) : (
+                          <span className="text-xs text-muted">
+                            {incoming ? "Awaiting admin dispatch" : "Outbound"}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>

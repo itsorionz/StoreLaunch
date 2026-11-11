@@ -10,7 +10,7 @@ export const normalizeReferralCode = (value: string) => value.trim().toUpperCase
 
 export async function getReferralCode(userId: string): Promise<string> {
   return db.$transaction(async (tx) => {
-    await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${userId} FOR UPDATE`;
+    await tx.$queryRaw`SELECT id FROM "Users" WHERE id = ${userId} FOR UPDATE`;
     const user = await tx.user.findUniqueOrThrow({ where: { id: userId } });
     if (user.referralCode) return user.referralCode;
     const code = "SL" + randomBytes(5).toString("hex").toUpperCase();

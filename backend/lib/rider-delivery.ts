@@ -11,6 +11,12 @@ import { db } from "./db";
 import { recordId, personName, checkboxValue } from "./form-validation";
 import { recordOrderEvent } from "./order-events";
 import { transitionOrder, type HandoverProof } from "./order-lifecycle";
+import type { DeliveryAttempt, DeliveryProof } from "@backend/generated/prisma/client";
+
+// View types for presentation code: the delivery evidence UI must not import
+// the generated ORM client, so the row shapes are re-exported from here.
+export type DeliveryAttemptView = DeliveryAttempt;
+export type DeliveryProofView = Omit<DeliveryProof, "photoData">;
 
 export const attemptReasons = {
   [DeliveryAttemptReasons.noAnswer]: "Customer did not answer",

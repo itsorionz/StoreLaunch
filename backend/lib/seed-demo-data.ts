@@ -40,19 +40,19 @@ export async function seedDemoOperations(db: PrismaClient) {
   const passwordHash = await bcrypt.hash("customer1234", 10);
   const customerData = [
     {
-      email: "customer@store.local",
+      email: "customer@store.storelaunch.com",
       name: "Ayesha Rahman",
       phone: "+8801712345678",
       referralCode: "AYESHA40",
     },
     {
-      email: "customer2@store.local",
+      email: "customer2@store.storelaunch.com",
       name: "Tanvir Ahmed",
       phone: "+8801812345678",
       referralCode: "TANVIR40",
     },
     {
-      email: "customer3@store.local",
+      email: "customer3@store.storelaunch.com",
       name: "Nusrat Jahan",
       phone: "+8801912345678",
       referralCode: "NUSRAT40",
@@ -81,22 +81,22 @@ export async function seedDemoOperations(db: PrismaClient) {
   );
   const [customer, referredCustomer, otherCustomer] = customers;
   const inactiveCustomer = await db.user.upsert({
-    where: { email: "inactive-customer@store.local" },
+    where: { email: "inactive-customer@store.storelaunch.com" },
     update: { active: false, roles: [Roles.Customer] },
     create: {
-      email: "inactive-customer@store.local",
+      email: "inactive-customer@store.storelaunch.com",
       name: "Demo Inactive Customer",
       passwordHash: await bcrypt.hash("customer1234", 10),
       roles: [Roles.Customer],
       active: false,
     },
   });
-  const admin = await db.user.findUniqueOrThrow({ where: { email: "admin@store.local" } });
+  const admin = await db.user.findUniqueOrThrow({ where: { email: "admin@store.storelaunch.com" } });
   const riderUser = await db.user.upsert({
-    where: { email: "rider@store.local" },
+    where: { email: "rider@store.storelaunch.com" },
     update: {},
     create: {
-      email: "rider@store.local",
+      email: "rider@store.storelaunch.com",
       name: "Sagar Khan",
       phone: "+8801617896767",
       passwordHash: await bcrypt.hash("rider1234", 10),
@@ -123,10 +123,10 @@ export async function seedDemoOperations(db: PrismaClient) {
     },
   });
   await db.user.upsert({
-    where: { email: "support@store.local" },
+    where: { email: "support@store.storelaunch.com" },
     update: { roles: [Roles.Customer, Roles.Support], active: true },
     create: {
-      email: "support@store.local",
+      email: "support@store.storelaunch.com",
       name: "Farhana Islam",
       phone: "+8801555666777",
       passwordHash: await bcrypt.hash("support1234", 10),
@@ -1101,7 +1101,7 @@ export async function seedDemoOperations(db: PrismaClient) {
   });
   await db.careerApplication.upsert({
     where: {
-      jobId_email: { jobId: demoCareerJob.id, email: "candidate@store.local" },
+      jobId_email: { jobId: demoCareerJob.id, email: "candidate@store.storelaunch.com" },
     },
     update: {
       status: CareerApplicationStatuses.New,
@@ -1111,7 +1111,7 @@ export async function seedDemoOperations(db: PrismaClient) {
     create: {
       jobId: demoCareerJob.id,
       name: "Demo Candidate",
-      email: "candidate@store.local",
+      email: "candidate@store.storelaunch.com",
       phone: "+8801712340099",
       resumeUrl: "https://example.com/demo-candidate-resume",
       coverLetter:

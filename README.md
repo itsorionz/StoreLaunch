@@ -46,7 +46,17 @@ Available screens do not imply that every external integration is configured. Pa
 | Runtime                    | Node.js 24.22.1; npm 10 or newer                                            |
 | Deployment options         | Local Node.js process or Docker Compose                                     |
 
-The `src/app` tree contains the routes and server-rendered screens. `backend/actions` holds server actions; `backend/lib` contains business logic and provider adapters; `backend/prisma` contains the schema, migrations, and development seed. API route handlers are under `src/app/api`.
+The `src/app` tree contains the routes and server-rendered screens. `backend/actions` holds server actions; `backend/lib` contains business logic, query modules, and provider adapters; `backend/prisma` contains the schema, migrations, and development seed. API route handlers are under `src/app/api`.
+
+The codebase follows a **clean architecture** (hexagonal / ports-and-adapters) layout: dependencies point inward only, and the Prisma ORM is an adapter that only the backend application layer may touch.
+
+| Layer              | Location                                                                 | May depend on                                                       |
+| ------------------ | ------------------------------------------------------------------------ | ------------------------------------------------------------------- |
+| Interface adapters | `src/app/**`, `frontend/**`                                              | `backend/actions`, `backend/lib` query functions and session guards |
+| Application layer  | `backend/actions/**` (commands), `backend/lib/**` (queries, policies)    | Prisma client, provider adapters                                    |
+| Persistence        | `backend/lib/db.ts`, `backend/lib/prisma-client.ts`, `backend/prisma/**` | nothing upward                                                      |
+
+Pages and components read data through exported query functions in `backend/lib` (for example `account-queries.ts`, `admin-orders-queries.ts`, `warehouse-queries.ts`) and write through server actions; they never import `@backend/lib/db` or the generated Prisma client. These boundaries are enforced as ESLint errors in `eslint.config.mjs` (rules R1–R4 in the [clean architecture plan](docs/clean-architecture-plan.md)), so `npm run lint` fails on any new direct ORM import from UI code or any backend import that reaches up into UI or route code.
 
 ## Requirements
 

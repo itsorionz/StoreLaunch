@@ -1,9 +1,9 @@
-import { campaignPriceSelect, withCampaignPrice } from "@backend/lib/campaign-pricing";
+import { withCampaignPrice } from "@backend/lib/campaign-pricing";
 import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@backend/lib/session";
-import { db } from "@backend/lib/db";
+import { listAccountWishlistItems } from "@backend/lib/account-queries";
 import { getDict } from "@frontend/i18n/dict";
 import { formatPrice } from "@backend/lib/money";
 import { WishlistButton } from "@frontend/components/account/wishlist-button";
@@ -14,27 +14,7 @@ async function WishlistsContent() {
   const user = await getCurrentUser();
   if (!user) redirect("/login?callbackUrl=/account/wishlists");
 
-  const [items, dict] = await Promise.all([
-    db.wishlist.findMany({
-      where: { userId: user.id },
-      orderBy: { createdAt: "desc" },
-      include: {
-        product: {
-          select: {
-            id: true,
-            name: true,
-            slug: true,
-            priceCents: true,
-            salePriceCents: true,
-            campaignOffers: campaignPriceSelect,
-            stock: true,
-            images: true,
-          },
-        },
-      },
-    }),
-    getDict(),
-  ]);
+  const [items, dict] = await Promise.all([listAccountWishlistItems(user.id), getDict()]);
 
   return (
     <div className="space-y-4">

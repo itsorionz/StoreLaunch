@@ -1,27 +1,24 @@
-import { db } from "@backend/lib/db";
+import {
+  countOrdersPerDeliveryHubSince,
+  listActiveWarehouses,
+  listDeliveryHubs,
+} from "@backend/lib/admin-logistics-queries";
 import { bdStartOfDay } from "@backend/lib/admin-dashboard-periods";
 import { HubManager } from "@frontend/components/admin/hub-manager";
+import { unstable_noStore } from "next/cache";
+import { connection } from "next/server";
 
 export const metadata = { title: "Delivery hubs" };
 
 export default async function DeliveryHubsPage() {
+  unstable_noStore();
+  await connection();
   // Capacity counts use "now" (Bangladesh day); only resolve against a request.
   const dayStart = bdStartOfDay();
   const [hubs, warehouses, assignedCounts] = await Promise.all([
-    db.deliveryHub.findMany({
-      orderBy: [{ isDefault: "desc" }, { name: "asc" }],
-      include: { warehouse: { select: { name: true } } },
-    }),
-    db.warehouse.findMany({
-      where: { active: true },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true, code: true },
-    }),
-    db.order.groupBy({
-      by: ["deliveryHubId"],
-      where: { deliveryHubId: { not: null }, createdAt: { gte: dayStart } },
-      _count: { _all: true },
-    }),
+    listDeliveryHubs(),
+    listActiveWarehouses(),
+    countOrdersPerDeliveryHubSince(dayStart),
   ]);
   const countsByHub = new Map(
     assignedCounts

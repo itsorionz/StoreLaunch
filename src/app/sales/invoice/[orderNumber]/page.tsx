@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireSalesPage } from "@backend/lib/session";
-import { db } from "@backend/lib/db";
 import { OrderSources } from "@backend/lib/enums.mjs";
+import { getSalesInvoiceOrder } from "@backend/lib/sales-queries";
 import { PrintButton } from "@frontend/components/sales/print-button";
 
 export const metadata = { title: "Invoice" };
@@ -14,10 +14,7 @@ export default async function SalesInvoicePage({
 }) {
   await requireSalesPage();
   const { orderNumber } = await params;
-  const order = await db.order.findUnique({
-    where: { number: orderNumber },
-    include: { items: true, user: { select: { name: true, phone: true } } },
-  });
+  const order = await getSalesInvoiceOrder(orderNumber);
   if (!order || order.source !== OrderSources.SalesRep) notFound();
 
   const symbol = order.currencySymbol ?? "৳";

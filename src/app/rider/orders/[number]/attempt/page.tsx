@@ -1,8 +1,8 @@
 import { OrderStatuses } from "@backend/lib/enums.mjs";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { db } from "@backend/lib/db";
 import { getRider } from "@backend/lib/session";
+import { getRiderOrderAttempt } from "@backend/lib/rider-queries";
 import { DeliveryAttemptForm } from "@frontend/components/rider/delivery-forms";
 
 export default async function RiderAttemptPage({
@@ -13,7 +13,7 @@ export default async function RiderAttemptPage({
   const ctx = await getRider();
   if (!ctx) redirect("/login?callbackUrl=/rider");
   const { number } = await params;
-  const order = await db.order.findFirst({ where: { number, riderId: ctx.rider.id } });
+  const { order } = await getRiderOrderAttempt(number, ctx.rider.id);
   if (!order) notFound();
   return (
     <div className="space-y-4">

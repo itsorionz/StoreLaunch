@@ -1,10 +1,7 @@
-import { db } from "@backend/lib/db";
+import { listPurchaseOrders } from "@backend/lib/admin-catalog-queries";
 
 export default async function PurchaseOrdersPage() {
-  const pos = await db.purchaseOrder.findMany({
-    include: { supplier: true },
-    orderBy: { createdAt: "desc" },
-  });
+  const pos = await listPurchaseOrders();
 
   return (
     <div className="min-h-screen bg-background">

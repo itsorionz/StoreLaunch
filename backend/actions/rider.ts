@@ -16,6 +16,9 @@ import {
   completeRiderDelivery,
 } from "../lib/rider-delivery";
 import { saveProofPhoto, discardProofPhoto } from "../lib/delivery-photo";
+import { logger } from "../lib/logger";
+
+const log = logger.child({ scope: "action:rider" });
 
 export type RiderActionResult = { ok: boolean; error?: string };
 
@@ -116,12 +119,20 @@ export async function saveDeliveryProof(
   try {
     photo = await saveProofPhoto(form.get("photo"));
   } catch (error) {
+    log.warn("saveDeliveryProof photo rejected", { error, orderId: parsed.data.orderId });
     return fieldFailure("photo", error instanceof Error ? error.message : "Could not save photo");
   }
   let result;
   try {
     result = await completeRiderDelivery(ctx.user.id, parsed.data, photo);
-  } catch {
+  } catch (error) {
+    // The proof photo is discarded and the rider sees a generic message, so
+    // without this line the real cause of a failed delivery would be lost.
+    log.error("saveDeliveryProof failed", {
+      error,
+      orderId: parsed.data.orderId,
+      riderId: ctx.user.id,
+    });
     await discardProofPhoto(photo.photoKey);
     return { error: "Delivery could not be saved. Refresh and try again" };
   }
